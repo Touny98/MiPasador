@@ -12,7 +12,7 @@ export const updateSession = async (request: NextRequest) => {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
         // Write cookies on the request so Server Components can read the refreshed session
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         supabaseResponse = NextResponse.next({ request });
