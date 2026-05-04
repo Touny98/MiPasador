@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/utils/supabase';
+import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 
 export async function resolveGap(id: string) {
   const { error } = await supabaseAdmin

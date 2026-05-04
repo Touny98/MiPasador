@@ -1,35 +1,21 @@
 'use client';
 
+import { login } from './action';
 import { useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setLoading(true);
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (authError) throw authError;
-
-      // Redirect to admin dashboard after successful login
-      router.push('/admin');
+      await login(new FormData(e.currentTarget as HTMLFormElement));
     } catch (err: any) {
       setError(err.message || 'An error occurred');
     } finally {
@@ -82,10 +68,10 @@ export default function LoginPage() {
               {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
             </button>
           </div>
+          <p className="text-center text-sm text-gray-500">
+            No tienes una cuenta? <a href="#" className="text-indigo-600 hover:text-indigo-500">Regístrate</a>
+          </p>
         </form>
-        <p className="text-center text-sm text-gray-500">
-          ¿No tienes una cuenta? <a href="#" className="text-indigo-600 hover:text-indigo-500">Regístrate</a>
-        </p>
       </div>
     </div>
   );

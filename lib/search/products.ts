@@ -10,8 +10,10 @@ export async function searchProducts(rawQuery: string, merchantId: string) {
   const intent = parseIntent(normalized);
 
   // Step 3: Use the RPC function to search products with pg_trgm
+  // Pass null when no merchant so the function searches across all merchants
+  const merchantParam = merchantId && merchantId.length > 0 ? merchantId : null;
   const { data: products, error } = await supabase
-    .rpc('search_products', { query_text: normalized, merchant: merchantId });
+    .rpc('search_products', { query_text: normalized, merchant: merchantParam });
 
   if (error) throw error;
   return rerank(products ?? [], intent);

@@ -1,6 +1,6 @@
 'use client';
 
-import { supabase } from '@/lib/utils/supabase';
+import { supabase } from '@/lib/utils/supabase/client';
 import { useState, useEffect } from 'react';
 
 export default function AdminDashboard() {
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
             </div>
             <div className="text-green-500">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 001.946.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 014.438 0M3 9l9 9"></path>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 001.946.806 3.42 3.42 0 001.946.806 3.42 3.42 0 001.946.806 3.42 3.42 0 001.946.806 3.42 3.42 0 001.946.806 3.42 3.42 0 001.946.806M3 9l9 9"></path>
               </svg>
             </div>
           </div>

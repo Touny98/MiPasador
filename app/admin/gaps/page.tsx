@@ -1,6 +1,6 @@
 'use client';
 
-import { supabase } from '@/lib/utils/supabase';
+import { supabase } from '@/lib/utils/supabase/client';
 import { resolveGap } from './actions';
 import { useState, useEffect } from 'react';
 

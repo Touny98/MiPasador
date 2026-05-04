@@ -1,5 +1,7 @@
 import { MetaCloudProvider } from '../messaging/meta-cloud';
 import { searchProducts } from '@/lib/search/products';
+import { normalizeQuery } from '@/lib/search/intent-parser';
+import { supabaseAdmin } from '@/lib/utils/supabase';
 
 // Initialize MetaCloudProvider (credentials from env)
 const metaProvider = new MetaCloudProvider(
@@ -47,6 +49,15 @@ export async function handleIncomingMessage(
     // Search products using the raw message and merchantId (searchProducts handles intent parsing and reranking internally)
     const products = await searchProducts(message, merchantId);
 
+    // Save query to DB for analytics / gap tracking
+    const { error: queryInsertErr } = await supabaseAdmin.from('queries').insert({
+      search_term: message,
+      normalized_search_term: normalizeQuery(message),
+      results_count: products.length,
+      resolved_bool: products.length > 0,
+    });
+    if (queryInsertErr) console.error('Failed to save query:', queryInsertErr);
+
     let responseMessage: string;
     if (products.length === 0) {
       responseMessage = 'Lo siento, no encontré productos que coincidan con tu búsqueda.';
@@ -55,11 +66,14 @@ export async function handleIncomingMessage(
       responseMessage = composeResponse(products);
     }
 
-    // Send the response via WhatsApp
-    await metaProvider.sendMessage(from, responseMessage);
+    // Send the response via WhatsApp (best-effort — may fail in dev with invalid token)
+    await metaProvider.sendMessage(from, responseMessage).catch(err => {
+      console.warn('WhatsApp send failed (non-fatal in dev):', (err as Error).message);
+    });
   } catch (error) {
     console.error('Error in dispatcher:', error);
-    // Optionally, send an error message to the user
-    await metaProvider.sendMessage(from, 'Hubo un error procesando tu mensaje. Por favor, intenta nuevamente.');
+    // Best-effort error reply — ignore if send fails (e.g., invalid token in dev)
+    await metaProvider.sendMessage(from, 'Hubo un error procesando tu mensaje. Por favor, intenta nuevamente.')
+      .catch(() => {});
   }
 }

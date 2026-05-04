@@ -1,7 +1,7 @@
 'use client';
 
 import { createProduct, deleteProduct, updateProduct } from './actions';
-import { supabase } from '@/lib/utils/supabase';
+import { supabase } from '@/lib/utils/supabase/client';
 import { useState, useEffect } from 'react';
 
 export default function ProductsPage() {

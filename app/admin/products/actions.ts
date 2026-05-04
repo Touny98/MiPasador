@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/utils/supabase';
+import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 
 export async function createProduct(formData: FormData) {
   const merchant_id = formData.get('merchant_id') as string;

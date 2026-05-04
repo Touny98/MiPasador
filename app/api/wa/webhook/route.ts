@@ -64,16 +64,18 @@ export async function POST(request: NextRequest) {
           }
           processedMessageIds.add(msgIdMeta);
 
-          // Save message to database (fire-and-forget, but we await for reliability)
-          // In a real app, you might want to use a queue or background job
-          await saveIncomingMessage(message, phoneNumberId).catch(err => {
+          // Save message and resolve phone_number_id → internal merchant UUID
+          const saveResult = await saveIncomingMessage(message, phoneNumberId).catch(err => {
             console.error('Failed to save incoming message:', err);
+            return null;
           });
 
           // If it's a text message, process it with the bot dispatcher
+          // Pass the resolved merchantId (UUID) — not the raw phoneNumberId
           if (message.type === 'text' && message.text?.body) {
+            const merchantId = saveResult?.merchantId ?? '';
             try {
-              await handleIncomingMessage(message.from, message.text.body, phoneNumberId ?? '');
+              await handleIncomingMessage(message.from, message.text.body, merchantId);
             } catch (err) {
               console.error('Failed to handle incoming message:', err);
             }

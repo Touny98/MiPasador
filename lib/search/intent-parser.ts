@@ -13,10 +13,10 @@ export function parseIntent(normalized: string): {
   maxPriceArs: number | null;
   keywords: string[];
 } {
-  const categoryMatches = normalized.match(/(?:category:|categoria:)(\w+)/i);
+  const categoryMatches = normalized.match(/(?:category:|categoria:)\s*(\w+)/i);
   const category = categoryMatches ? categoryMatches[1] : null;
 
-  const brandMatches = normalized.match(/(?:brand:|marca:)(\w+)/i);
+  const brandMatches = normalized.match(/(?:brand:|marca:)\s*([\w-]+)/i);
   const brand = brandMatches ? brandMatches[1] : null;
 
   // Capacity: "2l", "2 litros", "500ml", etc.
@@ -73,15 +73,23 @@ export function scoreProduct(
   }
 
   // capacity_liters column does not exist in current schema — no-op until added
-  if (intent.capacityLiters !== null && product.capacity_liters != null) {
+  if (intent.capacityLiters !== null && product.capacity_liters !== null) {
     const diff = Math.abs(product.capacity_liters - intent.capacityLiters);
     const maxCap = Math.max(product.capacity_liters, intent.capacityLiters);
     score += maxCap > 0 ? weights.capacity * (1 - diff / maxCap) : weights.capacity;
   }
 
   // product.price is stored in product.currency; rate converts to ARS
-  if (intent.maxPriceArs !== null && product.price != null) {
-    const priceInArs = parseFloat(product.price) * rate;
+  // Some test mocks may provide priceArs directly
+  let priceInArs: number | null = null;
+  if (product.price != null) {
+    const priceInBaseCurrency = parseFloat(product.price);
+    priceInArs = priceInBaseCurrency * rate;
+  } else if (product.priceArs != null) {
+    priceInArs = parseFloat(product.priceArs);
+  }
+
+  if (intent.maxPriceArs !== null && priceInArs != null) {
     if (priceInArs <= intent.maxPriceArs) {
       score += weights.price;
     }
