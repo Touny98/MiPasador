@@ -116,7 +116,7 @@ export async function saveIncomingMessage(message: WhatsAppMessage, phoneNumberI
       throw messageError;
     }
 
-    return { success: true, merchantId };
+    return { success: true, merchantId, conversationId };
   } catch (error) {
     console.error('Failed to save incoming message:', error);
     throw error;

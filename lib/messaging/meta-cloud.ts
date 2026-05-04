@@ -45,7 +45,8 @@ export class MetaCloudProvider {
 
         // 4xx (except 429 rate-limit): client error, retrying won't help
         if (response.status < 500 && response.status !== 429) {
-          throw new Error(`Non-retryable HTTP ${response.status}`);
+          const body = await response.text().catch(() => '(unreadable)');
+          throw new Error(`Non-retryable HTTP ${response.status}: ${body}`);
         }
 
         // 5xx or 429: transient, will retry
