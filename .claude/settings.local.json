@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "WebSearch",
+      "Bash(supabase link *)",
+      "PowerShell(supabase *)",
+      "Bash(npx supabase *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "PowerShell($env:SUPABASE_URL)",
+      "Bash(git config *)"
+    ]
+  }
+}

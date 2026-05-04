@@ -1,0 +1,23 @@
+# Node Modules
+node_modules/
+
+# Next.js
+.out/
+.next/
+.cache/
+
+# Production builds
+.build
+
+# Misc
+.DS_Thumb
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# Supabase
+supabase/
