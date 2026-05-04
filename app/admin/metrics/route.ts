@@ -4,11 +4,11 @@ import { parseIntent } from '@/lib/search/intent-parser';
 
 export async function GET() {
   try {
-    // Execute all metrics queries in parallel
+    // Execute all metrics queries in parallel using service role (bypasses RLS)
     const [
       totalQueriesResult,
       resolvedQueriesResult,
-      pendingGapsResult,
+      pendingGapsDataResult, // We'll get the actual data to count, matching gaps page exactly
       queriesPerDayResult,
       topSearchedKeywordsResult,
       topMerchantsResult,
@@ -21,9 +21,18 @@ export async function GET() {
       // Resolved queries (resolved_bool = true)
       supabaseAdmin.from('queries').select('*', { count: 'exact', head: true }).eq('resolved_bool', true),
 
-      // All unresolved queries (matches gaps page which uses left join, not inner)
+      // Get ALL unresolved queries data (exactly matching gaps page query) to count
       supabaseAdmin.from('queries')
-        .select('*', { count: 'exact', head: true })
+        .select(`
+          id,
+          search_term,
+          results_count,
+          created_at,
+          conversations (
+            user_whatsapp_id,
+            user_name
+          )
+        `)
         .eq('resolved_bool', false),
 
       // Queries per day (last 7 days)
@@ -61,7 +70,8 @@ export async function GET() {
     // Process results
     const totalQueries = totalQueriesResult.count ?? 0;
     const resolvedQueries = resolvedQueriesResult.count ?? 0;
-    const pendingGaps = pendingGapsResult.count ?? 0;
+    // Count the actual data returned (matching exactly what gaps page shows)
+    const pendingGaps = pendingGapsDataResult.data?.length ?? 0;
     const resolutionRate = totalQueries > 0 ? Math.round((resolvedQueries / totalQueries) * 100) : 0;
 
     // Queries per day (last 7 days)

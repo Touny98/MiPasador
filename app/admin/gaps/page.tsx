@@ -1,6 +1,5 @@
 'use client';
 
-import { supabase } from '@/lib/utils/supabase/client';
 import { resolveGap } from './actions';
 import { useState, useEffect } from 'react';
 
@@ -16,23 +15,12 @@ export default function GapsPage() {
   const fetchGaps = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('queries')
-        .select(`
-          id,
-          search_term,
-          results_count,
-          created_at,
-          conversations (
-            user_whatsapp_id,
-            user_name
-          )
-        `)
-        .eq('resolved_bool', false)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setGaps(data || []);
+      const response = await fetch('/admin/gaps/data');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setGaps(data);
     } catch (error) {
       console.error('Error fetching gaps:', error);
     } finally {
@@ -44,7 +32,6 @@ export default function GapsPage() {
     setUpdating(prev => new Set(prev).add(id));
     try {
       await resolveGap(id);
-      // Remove the resolved gap from the list
       setGaps(prev => prev.filter(gap => gap.id !== id));
     } catch (error) {
       console.error('Error marking gap as resolved:', error);
