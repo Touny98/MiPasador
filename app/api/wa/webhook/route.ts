@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { verifyWebhookSignature } from '@/lib/utils/webhookVerification';
 import { saveIncomingMessage } from '@/lib/services/messageService';
 import { handleIncomingMessage } from '@/lib/bot/dispatcher';
@@ -43,57 +43,40 @@ export async function POST(request: NextRequest) {
     return new NextResponse('Invalid JSON', { status: 400 });
   }
 
-  // Process each entry and change
-  const processedMessageIds: Set<string> = new Set();
+  // Respond 200 immediately — Meta requires acknowledgement before doing any work
+  after(async () => {
+    const processedMessageIds: Set<string> = new Set();
 
-  for (const entry of payload.entry) {
-    for (const change of entry.changes) {
-      const { value } = change;
+    for (const entry of payload.entry) {
+      for (const change of entry.changes) {
+        const { value } = change;
+        const phoneNumberId = value.metadata?.phone_number_id;
 
-      // Extract phone number ID for merchant lookup
-      const phoneNumberId = value.metadata?.phone_number_id;
+        if (value.messages) {
+          for (const message of value.messages) {
+            const msgIdMeta: MessageIdMeta = message.id;
 
-      // Handle incoming messages
-      if (value.messages) {
-        for (const message of value.messages) {
-          const msgIdMeta: MessageIdMeta = message.id;
+            if (processedMessageIds.has(msgIdMeta)) continue;
+            processedMessageIds.add(msgIdMeta);
 
-          // Check idempotency: skip if we've already processed this message
-          if (processedMessageIds.has(msgIdMeta)) {
-            continue;
-          }
-          processedMessageIds.add(msgIdMeta);
+            const saveResult = await saveIncomingMessage(message, phoneNumberId).catch(err => {
+              console.error('Failed to save incoming message:', err);
+              return null;
+            });
 
-          // Save message and resolve phone_number_id → internal merchant UUID
-          const saveResult = await saveIncomingMessage(message, phoneNumberId).catch(err => {
-            console.error('Failed to save incoming message:', err);
-            return null;
-          });
-
-          // If it's a text message, process it with the bot dispatcher
-          // Pass the resolved merchantId (UUID) — not the raw phoneNumberId
-          if (message.type === 'text' && message.text?.body) {
-            const merchantId = saveResult?.merchantId ?? '';
-            try {
-              await handleIncomingMessage(message.from, message.text.body, merchantId);
-            } catch (err) {
-              console.error('Failed to handle incoming message:', err);
+            if (message.type === 'text' && message.text?.body) {
+              const merchantId = saveResult?.merchantId ?? '';
+              try {
+                await handleIncomingMessage(message.from, message.text.body, merchantId);
+              } catch (err) {
+                console.error('Failed to handle incoming message:', err);
+              }
             }
           }
         }
       }
-
-      // Handle status updates (optional)
-      if (value.statuses) {
-        // Process status updates if needed
-        for (const status of value.statuses) {
-          // Example: update message status in DB
-          // saveMessageStatus(status).catch(console.error);
-        }
-      }
     }
-  }
+  });
 
-  // Respond 200 immediately to acknowledge receipt
   return new NextResponse('OK', { status: 200 });
 }
