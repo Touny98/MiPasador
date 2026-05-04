@@ -147,7 +147,7 @@ export default function MerchantsPage() {
           <tbody className="divide-y divide-gray-200">
             {merchants.length === 0 ? (
               <tr>
-                <td colspan="4" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
                   No se encontraron comercios.
                 </td>
               </tr>

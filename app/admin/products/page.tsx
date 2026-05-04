@@ -274,7 +274,7 @@ export default function ProductsPage() {
           <tbody className="divide-y divide-gray-200">
             {products.length === 0 ? (
               <tr>
-                <td colspan="5" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                   No se encontraron productos.
                 </td>
               </tr>
