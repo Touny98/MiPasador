@@ -19,5 +19,5 @@ node_modules/
 # Vercel
 .vercel
 
-# Supabase
-supabase/
+# Supabase CLI (only root-level dir, not utils/supabase/)
+/supabase/
