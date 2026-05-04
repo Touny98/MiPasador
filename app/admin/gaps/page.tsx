@@ -23,7 +23,7 @@ export default function GapsPage() {
           search_term,
           results_count,
           created_at,
-          conversations!inner (
+          conversations (
             user_whatsapp_id,
             user_name
           )

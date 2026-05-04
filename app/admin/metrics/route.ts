@@ -8,6 +8,7 @@ export async function GET() {
     const [
       totalQueriesResult,
       resolvedQueriesResult,
+      pendingGapsResult,
       queriesPerDayResult,
       topSearchedKeywordsResult,
       topMerchantsResult,
@@ -19,6 +20,11 @@ export async function GET() {
 
       // Resolved queries (resolved_bool = true)
       supabaseAdmin.from('queries').select('*', { count: 'exact', head: true }).eq('resolved_bool', true),
+
+      // All unresolved queries (matches gaps page which uses left join, not inner)
+      supabaseAdmin.from('queries')
+        .select('*', { count: 'exact', head: true })
+        .eq('resolved_bool', false),
 
       // Queries per day (last 7 days)
       supabaseAdmin.from('queries')
@@ -55,7 +61,7 @@ export async function GET() {
     // Process results
     const totalQueries = totalQueriesResult.count ?? 0;
     const resolvedQueries = resolvedQueriesResult.count ?? 0;
-    const pendingGaps = totalQueries - resolvedQueries;
+    const pendingGaps = pendingGapsResult.count ?? 0;
     const resolutionRate = totalQueries > 0 ? Math.round((resolvedQueries / totalQueries) * 100) : 0;
 
     // Queries per day (last 7 days)
