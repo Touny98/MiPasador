@@ -12,11 +12,17 @@ export const updateSession = async (request: NextRequest) => {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
+        setAll(cookiesToSet: { name: string; value: string; options: any }[], headers?: Record<string, string>) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
+          if (headers) {
+            Object.entries(headers).forEach(([key, val]) =>
+              supabaseResponse.headers.set(key, val)
+            );
+          }
         },
       },
     }

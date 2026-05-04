@@ -43,7 +43,7 @@ function logUnresolvedQuery(query: string) {
 export async function handleIncomingMessage(
   from: string,
   message: string,
-  merchantId: string
+  merchantId: string = ''
 ): Promise<void> {
   try {
     // Search products using the raw message and merchantId (searchProducts handles intent parsing and reranking internally)
