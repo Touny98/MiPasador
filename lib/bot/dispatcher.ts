@@ -123,6 +123,7 @@ export async function handleIncomingMessage(
       normalized_search_term: normalizeQuery(message),
       results_count: products.length,
       resolved_bool: products.length > 0,
+      conversation_id: conversationId || null,
     });
     if (queryInsertErr) console.error('Failed to save query:', queryInsertErr);
 
@@ -134,14 +135,19 @@ export async function handleIncomingMessage(
       responseMessage = composeResponse(products);
     }
 
-    // Send the response via WhatsApp (best-effort — may fail in dev with invalid token)
     await metaProvider.sendMessage(from, responseMessage).catch(err => {
-      console.warn('WhatsApp send failed (non-fatal in dev):', (err as Error).message);
+      console.error('[Meta] sendMessage failed — check META_ACCESS_TOKEN and recipient whitelist:', {
+        error: (err as Error).message,
+        to: from,
+        merchantId,
+      });
     });
   } catch (error) {
     console.error('Error in dispatcher:', error);
     // Best-effort error reply — ignore if send fails (e.g., invalid token in dev)
     await metaProvider.sendMessage(from, 'Hubo un error procesando tu mensaje. Por favor, intenta nuevamente.')
-      .catch(() => {});
+      .catch(err => {
+        console.error('[Meta] sendMessage (error reply) failed:', (err as Error).message, { to: from });
+      });
   }
 }
