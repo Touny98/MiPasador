@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
           });
 
           // If it's a text message, process it with the bot dispatcher
-          if (message.type === 'text') {
+          if (message.type === 'text' && message.text?.body) {
             try {
               await handleIncomingMessage(message.from, message.text.body, phoneNumberId ?? '');
             } catch (err) {
