@@ -34,10 +34,10 @@ export default function AdminDashboard() {
 
       if (resolvedError) throw resolvedError;
 
-      const pendingGaps = (totalQueries || 0) - (resolvedQueries || 0);
-      const resolutionRate = totalQueries > 0
-        ? Math.round((resolvedQueries || 0) / totalQueries * 100)
-        : 0;
+      const total = totalQueries ?? 0;
+      const resolved = resolvedQueries ?? 0;
+      const pendingGaps = total - resolved;
+      const resolutionRate = total > 0 ? Math.round(resolved / total * 100) : 0;
 
       setStats({
         totalQueries: totalQueries || 0,
