@@ -2,6 +2,19 @@ import { MetaCloudProvider } from '../messaging/meta-cloud';
 import { searchProducts } from '@/lib/search/products';
 import { normalizeQuery } from '@/lib/search/intent-parser';
 import { supabaseAdmin } from '@/lib/utils/supabase';
+import { createReservation } from '@/lib/services/reservationService';
+
+/**
+ * Generate a random reservation code (8 alphanumeric characters)
+ */
+function generateReservationCode(): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return code;
+}
 
 // Initialize MetaCloudProvider (credentials from env)
 const metaProvider = new MetaCloudProvider(
@@ -43,8 +56,63 @@ function logUnresolvedQuery(query: string) {
 export async function handleIncomingMessage(
   from: string,
   message: string,
-  merchantId: string = ''
+  merchantId: string = '',
+  conversationId: string = ''
 ): Promise<void> {
+  // Check if the message is a reservation request
+  const lowerMessage = message.toLowerCase().trim();
+  if (lowerMessage.includes('reservar')) {
+    const productQuery = lowerMessage.replace('reservar', '').trim();
+
+    if (!productQuery) {
+      await metaProvider.sendMessage(from, 'Por favor indicá qué producto querés reservar. Ejemplo: "reservar pizza"').catch(() => {});
+      return;
+    }
+
+    if (!conversationId) {
+      await metaProvider.sendMessage(from, 'No pudimos identificar tu conversación. Por favor, intentá nuevamente.').catch(() => {});
+      return;
+    }
+
+    try {
+      const products = await searchProducts(productQuery, merchantId);
+      const topProduct = products[0];
+
+      if (!topProduct) {
+        await metaProvider.sendMessage(from, 'No encontré ese producto. Por favor, especificá mejor qué querés reservar.').catch(() => {});
+        return;
+      }
+
+      // Generate reservation code
+      const reservationCode = generateReservationCode();
+
+      // Create reservation in the database
+      await createReservation({
+        conversationId,
+        productId: topProduct.id,
+        quantity: 1,
+        status: 'pending',
+        notes: reservationCode, // Store the code in notes for reference
+      });
+
+      // Send confirmation to the user
+      await metaProvider.sendMessage(
+        from,
+        `Su reserva ha sido creada con éxito.\n\nCódigo de reserva: ${reservationCode}\nProducto: ${topProduct.name}\nCantidad: 1\nEstado: Pendiente\n\nGracias por su compra.`
+      );
+
+      // Log notification for merchant (in a real app, you might send a WhatsApp template message or email)
+      console.log(`New reservation for merchant ${merchantId}: Code ${reservationCode}, Product ${topProduct.name}, Conversation ${conversationId}`);
+
+      return; // Exit early to avoid normal product search flow
+    } catch (error) {
+      console.error('Error processing reservation:', error);
+      await metaProvider.sendMessage(from, 'Hubo un error al procesar su reserva. Por favor, intente nuevamente.');
+      return;
+    }
+  }
+
+  // If not a reservation request, proceed with normal product search
   try {
     // Search products using the raw message and merchantId (searchProducts handles intent parsing and reranking internally)
     const products = await searchProducts(message, merchantId);

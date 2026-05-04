@@ -64,10 +64,10 @@ export async function POST(request: NextRequest) {
               return null;
             });
 
-            if (message.type === 'text' && message.text?.body) {
-              const merchantId = saveResult?.merchantId ?? '';
+            if (message.type === 'text' && message.text?.body && saveResult) {
+              const { merchantId, conversationId } = saveResult;
               try {
-                await handleIncomingMessage(message.from, message.text.body, merchantId);
+                await handleIncomingMessage(message.from, message.text.body, merchantId ?? '', conversationId ?? '');
               } catch (err) {
                 console.error('Failed to handle incoming message:', err);
               }

@@ -1,6 +1,5 @@
 'use client';
 
-import { supabase } from '@/lib/utils/supabase/client';
 import { useState, useEffect } from 'react';
 
 export default function ReservationsPage() {
@@ -13,31 +12,16 @@ export default function ReservationsPage() {
 
   const fetchReservations = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('reservations')
-      .select(`
-        id,
-        quantity,
-        status,
-        notes,
-        created_at,
-        updated_at,
-        conversations!inner (
-          user_whatsapp_id,
-          user_name
-        ),
-        products!inner (
-          name
-        )
-      `)
-      .order('created_at', { ascending: false });
-
-    if (error) {
+    try {
+      const response = await fetch('/admin/reservations/data');
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      setReservations(data);
+    } catch (error) {
       console.error('Error fetching reservations:', error);
-    } else {
-      setReservations(data || []);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (loading) {
@@ -55,38 +39,24 @@ export default function ReservationsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Cliente
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Producto
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Cantidad
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Creada el
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creada el</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {reservations.map((reservation) => (
                 <tr key={reservation.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    {reservation.id.slice(0, 8)}...
-                  </td>
+                  <td className="px-6 py-4">{reservation.id.slice(0, 8)}...</td>
                   <td className="px-6 py-4">
                     {reservation.conversations?.user_name || reservation.conversations?.user_whatsapp_id || 'N/A'}
                   </td>
-                  <td className="px-6 py-4">
-                    {reservation.products?.name || 'N/A'}
-                  </td>
+                  <td className="px-6 py-4">{reservation.products?.name || 'N/A'}</td>
+                  <td className="px-6 py-4">{reservation.notes || '—'}</td>
                   <td className="px-6 py-4">{reservation.quantity}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 text-xs rounded-full ${
@@ -101,9 +71,7 @@ export default function ReservationsPage() {
                       {reservation.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    {new Date(reservation.created_at).toLocaleString()}
-                  </td>
+                  <td className="px-6 py-4">{new Date(reservation.created_at).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
