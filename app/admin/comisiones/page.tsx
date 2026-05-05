@@ -22,6 +22,7 @@ export default function ComisionesPage() {
         total_viajes,
         monto_comision,
         link_pago,
+        pagado,
         pasadores!comisiones_pasador_id_fkey(nombre_completo, dni)
       `)
       .order('fecha', { ascending: false });
@@ -44,6 +45,7 @@ export default function ComisionesPage() {
         total_viajes: c.total_viajes || 0,
         monto: c.monto_comision || 0,
         link_pago: c.link_pago || '',
+        pagado: c.pagado,
         pasador: c.pasadores?.nombre_completo || '---',
         dni: c.pasadores?.dni || '---',
       }));
@@ -79,6 +81,7 @@ export default function ComisionesPage() {
             <th className="p-4 text-center">Fecha</th>
             <th className="p-4 text-center">Total Viajes</th>
             <th className="p-4 text-center">Monto Comisión (ARS)</th>
+            <th className="p-4 text-center">Estado</th>
             <th className="p-4 text-center">Link de Pago</th>
           </tr>
         </thead>
@@ -90,6 +93,17 @@ export default function ComisionesPage() {
               <td className="p-4 text-center">{c.fecha}</td>
               <td className="p-4 text-center">{c.total_viajes}</td>
               <td className="p-4 text-center">${c.monto.toFixed(2)}</td>
+              <td className="p-4 text-center">
+                {c.pagado ? (
+                  <span className="px-2 py-1 rounded bg-green-100 text-green-800">
+                    Pagado
+                  </span>
+                ) : (
+                  <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-800">
+                    Pendiente
+                  </span>
+                )}
+              </td>
               <td className="p-4 text-center">
                 {c.link_pago ? (
                   <a
@@ -108,7 +122,7 @@ export default function ComisionesPage() {
           ))}
           {comisiones.length === 0 && (
             <tr>
-              <td colSpan={6} className="p-4 text-center text-gray-500">
+              <td colSpan={7} className="p-4 text-center text-gray-500">
                 No hay comisiones
               </td>
             </tr>

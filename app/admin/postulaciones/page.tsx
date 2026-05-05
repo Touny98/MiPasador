@@ -1,6 +1,5 @@
 "use client";
 
-import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { useState, useEffect } from 'react';
 
 export default function PostulacionesPage() {
@@ -19,22 +18,20 @@ export default function PostulacionesPage() {
 
   async function fetchPostulaciones() {
     setLoading(true);
-    let query = supabaseAdmin.from('postulaciones').select('*');
-
-    if (filter !== 'todos') {
-      query = query.eq('estado', filter);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching postulaciones:', error);
+    try {
+      const res = await fetch(`/api/admin/postulaciones?filter=${filter}`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch postulaciones');
+      }
+      const data = await res.json();
+      setPostulaciones(data);
+    } catch (err) {
+      console.error('Error fetching postulaciones:', err);
       // In a real app, you might show a toast
-    } else {
-      setPostulaciones(data || []);
+      setPostulaciones([]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   function handleVerPDF(id: number) {
@@ -66,79 +63,44 @@ export default function PostulacionesPage() {
 
     const { id, action } = modalData;
 
-    if (action === 'aceptar') {
-      // First, create a pasador from the postulacion
-      const { data: postulacion, error: fetchError } = await supabaseAdmin
-        .from('postulaciones')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (fetchError || !postulacion) {
-        alert('Error al obtener la postulación');
-        return;
-      }
-
-      // Check if a pasador with this wa_user_id already exists
-      const { data: existingPasador } = await supabaseAdmin
-        .from('pasadores')
-        .select('id')
-        .eq('wa_user_id', postulacion.wa_user_id ?? '')
-        .single();
-
-      if (existingPasador) {
-        // Update existing pasador? Or just mark postulacion as accepted?
-        // We'll just mark postulacion as accepted and not create duplicate
-        await supabaseAdmin
-          .from('postulaciones')
-          .update({ estado: 'aceptada' })
-          .eq('id', id);
-      } else {
-        // Create new pasador
-        const { error: createError } = await supabaseAdmin
-          .from('pasadores')
-          .insert({
-            nombre_completo: postulacion.nombre_completo,
-            dni: postulacion.dni,
-            wa_user_id: postulacion.wa_user_id ?? '',
-            activo: false,
-            estado: 'inactivo',
-            reputacion_promedio: null,
-            cantidad_viajes_completados: 0,
-          });
-
-        if (createError) {
-          alert('Error al crear el pasador');
-          return;
-        }
-
-        // Update postulacion status
-        await supabaseAdmin
-          .from('postulaciones')
-          .update({ estado: 'aceptada' })
-          .eq('id', id);
-      }
-    } else if (action === 'denegar') {
-      await supabaseAdmin
-        .from('postulaciones')
-        .update({ estado: 'denegada' })
-        .eq('id', id);
-    } else if (action === 'correccion') {
-      // Update postulacion with corrections and set estado to requiere_correccion
-      await supabaseAdmin
-        .from('postulaciones')
-        .update({
-          estado: 'requiere_correccion',
-          correcciones: JSON.stringify({
+    try {
+      if (action === 'aceptar') {
+        await fetch(`/api/admin/postulaciones`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ id, action }),
+        });
+      } else if (action === 'denegar') {
+        await fetch(`/api/admin/postulaciones`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ id, action }),
+        });
+      } else if (action === 'correccion') {
+        await fetch(`/api/admin/postulaciones`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id,
+            action,
             campos: correccionData.campos,
             observacion: correccionData.observacion,
           }),
-        })
-        .eq('id', id);
-    }
+        });
+      }
 
-    closeModal();
-    await fetchPostulaciones();
+      closeModal();
+      await fetchPostulaciones();
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      alert('Error al procesar la solicitud');
+    }
   }
 
   if (loading) {
@@ -302,12 +264,18 @@ export default function PostulacionesPage() {
             {modalData.action === 'ver' && (
               <div className="mb-4">
                 <p className="mb-2">URL del PDF:</p>
-                <input
-                  type="text"
-                  className="w-full p-2 border border-gray-300 rounded"
-                  value={postulaciones.find((p) => p.id === modalData.id)?.pdf_url || ''}
-                  readOnly
-                />
+                {postulaciones.find((p) => p.id === modalData.id)?.pdf_url ? (
+                  <a
+                    href={postulaciones.find((p) => p.id === modalData.id)?.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 underline"
+                  >
+                    Ver PDF
+                  </a>
+                ) : (
+                  <span className="text-gray-500">No hay PDF disponible</span>
+                )}
               </div>
             )}
 
