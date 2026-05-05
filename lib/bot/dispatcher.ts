@@ -224,27 +224,20 @@ export async function handleIncomingMessage(
     }
   }
 
-  // Purchase intent handling
-  let purchaseIntentMatched = false;
-
   if (isGreeting(lower)) {
     await sendWelcome(from, merchantId);
-    purchaseIntentMatched = true;
   } else if (isMenuRequest(lower)) {
     await sendMenu(from);
-    purchaseIntentMatched = true;
   } else if (lower.includes('reservar')) {
     const productQuery = lower.replace('reservar', '').trim();
 
     if (!productQuery) {
       await metaProvider.sendMessage(from, MSG.RESERVE_MISSING_PRODUCT).catch(() => {});
-      purchaseIntentMatched = true;
       return;
     }
 
     if (!conversationId) {
       await metaProvider.sendMessage(from, MSG.NO_CONVERSATION).catch(() => {});
-      purchaseIntentMatched = true;
       return;
     }
 
@@ -254,7 +247,6 @@ export async function handleIncomingMessage(
 
       if (!topProduct) {
         await metaProvider.sendMessage(from, MSG.NO_PRODUCT_FOR_RESERVE).catch(() => {});
-        purchaseIntentMatched = true;
         return;
       }
 
@@ -268,37 +260,32 @@ export async function handleIncomingMessage(
       });
       await metaProvider.sendMessage(from, MSG.RESERVE_CONFIRM(topProduct.name, reservationCode)).catch(() => {});
       console.log(`New reservation for merchant ${merchantId}: Code ${reservationCode}, Product ${topProduct.name}, Conversation ${conversationId}`);
-      purchaseIntentMatched = true;
       return;
     } catch (error) {
       console.error('Error processing reservation:', error);
       await metaProvider.sendMessage(from, MSG.RESERVE_ERROR).catch(() => {});
-      purchaseIntentMatched = true;
       return;
     }
   } else {
+    // Check for pasador intents before falling through to product search
+    if (conversationId) {
+      const rawCtx2 = await getOrCreateConversationContext(conversationId);
+      const ctx2 = (rawCtx2 ?? {}) as Record<string, unknown>;
+      const intencion = detectarIntencionPasador(lower);
+      if (intencion === 'solicitar') {
+        const { respuesta, estado } = await manejarSolicitud(from, trimmed, ctx2);
+        await setConversationContext(conversationId, { ...ctx2, pasador_flow: estado } as unknown as Json).catch(() => {});
+        await metaProvider.sendMessage(from, respuesta).catch(() => {});
+        return;
+      }
+      if (intencion === 'postular') {
+        const respuesta = await manejarPostulacion(from, 'inicio', trimmed);
+        const [msg, nextPaso] = respuesta.split('|||');
+        await setConversationContext(conversationId, { ...ctx2, postulacion_paso: nextPaso ?? 'nombre' } as unknown as Json).catch(() => {});
+        await metaProvider.sendMessage(from, msg).catch(() => {});
+        return;
+      }
+    }
     await handleSearch(from, trimmed, merchantId, conversationId);
-    purchaseIntentMatched = true;
-  }
-
-  // If no purchase intent matched, check for pasador intents
-  if (!purchaseIntentMatched && conversationId) {
-    const rawCtx = await getOrCreateConversationContext(conversationId);
-    const ctx = (rawCtx ?? {}) as Record<string, unknown>;
-
-    const intencion = detectarIntencionPasador(lower);
-    if (intencion === 'solicitar') {
-      const { respuesta, estado } = await manejarSolicitud(from, trimmed, ctx);
-      await setConversationContext(conversationId, { ...ctx, pasador_flow: estado } as unknown as Json).catch(() => {});
-      await metaProvider.sendMessage(from, respuesta).catch(() => {});
-      return;
-    }
-    if (intencion === 'postular') {
-      const respuesta = await manejarPostulacion(from, 'inicio', trimmed);
-      const [msg, nextPaso] = respuesta.split('|||');
-      await setConversationContext(conversationId, { ...ctx, postulacion_paso: nextPaso ?? 'nombre' } as unknown as Json).catch(() => {});
-      await metaProvider.sendMessage(from, msg).catch(() => {});
-      return;
-    }
   }
 }

@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
-import { generarLinkPago, registrarComision as registrarComisionMercadoPago } from '@/lib/pasador/mercadopago';
+import { generarLinkPago, registrarComision as registrarComisionMercadoPago } from '@/lib/pasador/comisiones';
 import { generarPostulacionPdf } from '@/lib/utils/pdf/generatePostulacionPdf';
 
 // Types for our flow state
@@ -351,6 +351,8 @@ export async function manejarComando(waUserId: string, comando: string): Promise
         return '❌ Error al aceptar el viaje.';
       }
 
+      await supabaseAdmin.from('pasadores').update({ estado: 'ocupado' }).eq('id', pasador.id);
+
       // Notificar al usuario (we would send a WhatsApp message, but we just return the response for the pasador)
       // The integrator will handle sending the message to the user.
       // We'll return a message that the integrator can use to notify the user?
@@ -371,10 +373,6 @@ export async function manejarComando(waUserId: string, comando: string): Promise
     }
 
     case 'RECHAZO': {
-      // Pasar viaje a 'cancelado', buscar nuevo pasador y reasignar. Responder "Viaje rechazado. Buscando otro pasador."
-      // Find a viaje assigned to this pasador with estado='asignado' or 'aceptado'?
-      // The prompt says: si tiene un viaje asignado (estado='asignado') -> but for RECHAZO, it might be assigned or accepted?
-      // We'll look for any viaje assigned to this pasador that is not completed or cancelled.
       const { data: viaje, error: viajeError } = await supabaseAdmin
         .from('viajes')
         .select('id, estado')
@@ -383,39 +381,19 @@ export async function manejarComando(waUserId: string, comando: string): Promise
         .single();
 
       if (viajeError || !viaje) {
-        return '❌ No tienes un viaje activo para rechazar.';
+        return '❌ No tenés un viaje activo para rechazar.';
       }
 
-      // Update viaje estado to 'cancelado'
-      const { error: updateError } = await supabaseAdmin
-        .from('viajes')
-        .update({ estado: 'cancelado' })
-        .eq('id', viaje.id);
+      // Liberar al pasador actual
+      await supabaseAdmin.from('pasadores').update({ estado: 'disponible' }).eq('id', pasador.id);
 
-      if (updateError) {
-        return '❌ Error al rechazar el viaje.';
-      }
-
-      // Now we need to reassign the viaje to another pasador.
-      // We'll get the viaje details to find a new pasador.
-      const { data: viajeDetails, error: detallesError } = await supabaseAdmin
-        .from('viajes')
-        .select('*')
-        .eq('id', viaje.id)
-        .single();
-
-      if (detallesError || !viajeDetails) {
-        return '✅ Viaje rechazado. Error al buscar detalles para reasignar.';
-      }
-
-      // We'll try to assign a new pasador (using asignarPasador, but we might want to consider the ruta?
-      // We'll ignore ruta for now and just assign the best pasador)
+      // Intentar reasignar a otro pasador disponible
       const nuevoPasador = await asignarPasador();
       if (!nuevoPasador) {
-        return '✅ Viaje rechazado. No hay pasadores disponibles para reasignar.';
+        await supabaseAdmin.from('viajes').update({ estado: 'cancelado' }).eq('id', viaje.id);
+        return '✅ Viaje rechazado. No hay pasadores disponibles, el viaje fue cancelado.';
       }
 
-      // Update the viaje with the new pasador
       const { error: updatePasadorError } = await supabaseAdmin
         .from('viajes')
         .update({ pasador_id: nuevoPasador.id, estado: 'asignado' })
@@ -425,7 +403,6 @@ export async function manejarComando(waUserId: string, comando: string): Promise
         return '✅ Viaje rechazado. Error al reasignar a otro pasador.';
       }
 
-      // Notify the user and the new pasador? We'll leave that to the integrator.
       return '✅ Viaje rechazado. Buscando otro pasador...';
     }
 
@@ -454,18 +431,18 @@ export async function manejarComando(waUserId: string, comando: string): Promise
         return '❌ Error al marcar el viaje como completado.';
       }
 
-      // Pedir rating al usuario: we'll send a message to the user asking for rating.
-      // We'll return a message for the pasador, and the integrator will handle sending the rating request to the user.
-      // We'll also calculate comisión and register it.
+      // Resetear estado pasador a disponible e incrementar contador de viajes
+      const { data: pasadorData } = await supabaseAdmin
+        .from('pasadores')
+        .select('cantidad_viajes_completados')
+        .eq('id', pasador.id)
+        .single();
+      const newCount = (pasadorData?.cantidad_viajes_completados ?? 0) + 1;
+      await supabaseAdmin
+        .from('pasadores')
+        .update({ estado: 'disponible', cantidad_viajes_completados: newCount })
+        .eq('id', pasador.id);
 
-      // We'll get the viajes completados by this pasador (today? or all time?)
-      // The prompt says: calcular comisión por viajes completados.
-      // We'll calculate commission for all completed viajes of this pasador?
-      // But we just completed one. We'll calculate commission for this viaje?
-      // The prompt says: al desconectarse, se calcula comisión por viajes completados.
-      // So we'll not calculate commission here, but when the pasador desconecta.
-
-      // We'll just return a message for the pasador.
       return '✅ Viaje marcado como completado. Se ha solicitado un rating al usuario.';
     }
 
@@ -484,7 +461,7 @@ export async function manejarComando(waUserId: string, comando: string): Promise
       // Cerrar la sesión actual: we'll update the latest sesiones_pasador for this pasador to set fin now
       const { data: sesiones, error: sesionesError } = await supabaseAdmin
         .from('sesiones_pasador')
-        .select('id, fin')
+        .select('id, inicio, fin')
         .eq('pasador_id', pasador.id)
         .is('fin', null)
         .order('inicio', { ascending: false })
@@ -492,7 +469,7 @@ export async function manejarComando(waUserId: string, comando: string): Promise
 
       if (!sesionesError && sesiones && sesiones.length > 0) {
         // Calculate commission for completed viajes in this session
-        const inicioSesion = sesiones[0].inicio;
+        const inicioSesion = sesiones[0].inicio ?? new Date(0).toISOString();
 
         // Get completed viajes for this pasador since the session inicio
         const { data: viajesCompletados, error: viajesError } = await supabaseAdmin
@@ -545,11 +522,8 @@ export async function manejarComando(waUserId: string, comando: string): Promise
 
 /**
  * Handle the pasador postulation flow.
- * @param waUserId WhatsApp user ID
- * @param paso Current step in the postulation flow
- * @param texto User's message
- * @param imagenes Array of image URLs (if any)
- * @returns Response string
+ * Returns "message|||nextStep" so the dispatcher can advance the step.
+ * Terminal responses (end of flow or errors with no retry) return plain strings.
  */
 export async function manejarPostulacion(
   waUserId: string,
@@ -557,140 +531,106 @@ export async function manejarPostulacion(
   texto: string,
   imagenes: string[] = []
 ): Promise<string> {
-  // We'll define the steps: inicio -> nombre -> dni -> imagen_frente -> imagen_dorso -> pdf -> terminado
-  // But the prompt says: Flujo similar a solicitud, pidiendo nombre, dni, fotos. Al final generarPDF y guardar en Supabase Storage.
-
-  // We'll use a simple state machine based on the paso parameter.
-
   const [stepKey, postulacionIdStr] = (paso || 'inicio').split(':');
   const postulacionId = postulacionIdStr ? parseInt(postulacionIdStr, 10) : null;
-  let currentStep = stepKey || 'inicio';
-
-  // We'll store data in a temporary way? We'll need to persist the data across messages.
-  // We'll use the conversation context? But the prompt doesn't specify.
-  // We'll assume that the webhook will store the postulation data in the conversation context under a key like 'postulacion_data'.
-  // We'll not implement persistence here; we'll expect the caller to manage state.
-
-  // For simplicity, we'll assume that the caller passes the current step and we return the next step and a response.
-  // We'll not store data in this function; we'll expect the caller to pass the data collected so far?
-  // The prompt doesn't specify.
-
-  // We'll change: we'll return an object with { respuesta: string, paso: string, datos: any }
-  // but the prompt says Promise<string>.
-  // We'll stick to returning a string and assume that the caller manages the state and data.
-
-  // We'll use a closure? Not possible.
-
-  // Given the constraints, we'll assume that the webhook will store the postulation data in the conversation context
-  // and we'll read and write from there. But the function signature doesn't allow us to update the context.
-
-  // We'll change the function to return an object? But the prompt says Promise<string>.
-
-  // We'll return a string that includes the next step and the data? Not ideal.
-
-  // We'll assume that the caller will store the data in the conversation context and pass the current step,
-  // and we'll return the response and the next step as part of the string?
-  // We'll do: response + "|||" + nextStep + "|||" + JSON.stringify(data)
-
-  // But that's ugly.
-
-  // Alternatively, we'll store the postulation data in a temporary table? Not good.
-
-  // Given the time, we'll simplify: we'll assume that the postulation flow is handled entirely in this function
-  // by storing the state in a static variable? Not safe for multiple users.
-
-  // We'll use a Map keyed by waUserId to store the postulation state.
-  // Since this is a serverless function, we cannot rely on in-memory storage between invocations.
-
-  // We'll have to use the database or the conversation context.
-
-  // We'll use the conversation context: we'll assume that the webhook will pass the entire conversation state
-  // (including any postulation data) in the texto? No.
-
-  // We'll re-read the prompt: "manejarPostulacion(waUserId: string, paso: string, texto: string, imagenes?: string[]): Promise<string>"
-  // It doesn't mention state. So we'll assume that the paso is enough to know where we are, and we'll return the response
-  // and the caller will update the paso and store the data elsewhere.
-
-  // We'll store the data in the conversation context by the webhook outside of this function.
-
-  // We'll implement the steps and return the response, and we'll expect the caller to:
-  //   - If we ask for nombre, the caller will store the texto as nombre and call us again with paso='nombre' and the next texto.
-  //   - Similarly for dni and images.
-
-  // We'll do:
+  const currentStep = stepKey || 'inicio';
 
   switch (currentStep) {
     case 'inicio':
-      return '📄 Vamos a iniciar tu postulación como pasador. Por favor, ingresá tu nombre completo:';
-    case 'nombre':
-      // We expect the texto to be the nombre
-      // We'll return a response asking for DNI
-      return `Gracias, ${texto}. Ahora, ingresá tu DNI (solo números):`;
-    case 'dni':
-      // We expect the texto to be the DNI
-      // We'll ask for the front of the DNI image
-      return '📸 Ahora, enviá una foto clara del frente de tu DNI:';
-    case 'imagen_frente':
-      // We expect imagenes to contain at least one image (the front)
-      if (imagenes.length === 0) {
-        return '⚠️ No recibí la imagen. Por favor, enviá una foto del frente de tu DNI:';
-      }
-      // We'll store the front image URL (we assume the first image is the front)
-      // Then ask for the back
-      return '📸 Ahora, enviá una foto clara del dorso de tu DNI:';
-    case 'imagen_dorso':
-      if (!postulacionId) {
-        return '❌ Error de estado. Empecemos de nuevo: escribí "ser pasador".';
-      }
-      if (imagenes.length === 0) {
-        return `⚠️ No recibí la imagen. Por favor, enviá una foto clara del dorso de tu DNI:|||imagen_dorso:${postulacionId}`;
+      return '📄 Vamos a iniciar tu postulación como pasador. Por favor, ingresá tu nombre completo:|||nombre';
+
+    case 'nombre': {
+      const { data: nuevaPostulacion, error } = await supabaseAdmin
+        .from('postulaciones')
+        .insert({ wa_user_id: waUserId, nombre_completo: texto.trim(), estado: 'pendiente' })
+        .select('id')
+        .single();
+
+      if (error || !nuevaPostulacion) {
+        return '❌ Error al guardar tu nombre. Intentá de nuevo.|||nombre';
       }
 
-      // Update the postulacion with the back image URL
+      return `Gracias, ${texto.trim()}. Ahora ingresá tu DNI (solo números):|||dni:${nuevaPostulacion.id}`;
+    }
+
+    case 'dni': {
+      if (!postulacionId) return '❌ Error de estado. Escribí "ser pasador" para empezar de nuevo.';
+
+      const { error } = await supabaseAdmin
+        .from('postulaciones')
+        .update({ dni: texto.trim() })
+        .eq('id', postulacionId);
+
+      if (error) return `❌ Error al guardar tu DNI. Intentá de nuevo.|||dni:${postulacionId}`;
+
+      return `📸 Enviá una foto clara del frente de tu DNI:|||imagen_frente:${postulacionId}`;
+    }
+
+    case 'imagen_frente': {
+      if (!postulacionId) return '❌ Error de estado. Escribí "ser pasador" para empezar de nuevo.';
+
+      if (imagenes.length === 0) {
+        return `⚠️ No recibí la imagen. Enviá una foto del frente de tu DNI:|||imagen_frente:${postulacionId}`;
+      }
+
+      const { error } = await supabaseAdmin
+        .from('postulaciones')
+        .update({ imagen_frente_url: imagenes[0] })
+        .eq('id', postulacionId);
+
+      if (error) return `❌ Error al guardar la imagen. Intentá de nuevo.|||imagen_frente:${postulacionId}`;
+
+      return `📸 Ahora enviá una foto clara del dorso de tu DNI:|||imagen_dorso:${postulacionId}`;
+    }
+
+    case 'imagen_dorso': {
+      if (!postulacionId) return '❌ Error de estado. Escribí "ser pasador" para empezar de nuevo.';
+
+      if (imagenes.length === 0) {
+        return `⚠️ No recibí la imagen. Enviá una foto del dorso de tu DNI:|||imagen_dorso:${postulacionId}`;
+      }
+
       const { error: updateErrorDorso } = await supabaseAdmin
         .from('postulaciones')
         .update({ imagen_dorso_url: imagenes[0] })
         .eq('id', postulacionId);
 
-      if (updateErrorDorso) {
-        return '❌ Error al guardar la imagen del dorso. Intentá de nuevo.';
-      }
+      if (updateErrorDorso) return `❌ Error al guardar la imagen del dorso. Intentá de nuevo.|||imagen_dorso:${postulacionId}`;
 
-      // Now we have all data, generate PDF and store in Storage
-      const { data: postulacionDataFromDb, error: fetchError } = await supabaseAdmin
+      const { data: postulacionData, error: fetchError } = await supabaseAdmin
         .from('postulaciones')
         .select('nombre_completo, dni, imagen_frente_url, imagen_dorso_url')
         .eq('id', postulacionId)
         .single();
 
-      if (fetchError || !postulacionDataFromDb) {
+      if (fetchError || !postulacionData) {
         return '❌ Error al obtener los datos de la postulación. Intentá de nuevo.';
       }
 
-      const pdfUrl = await generarPostulacionPdf({
-        nombre_completo: postulacionDataFromDb.nombre_completo ?? '',
-        dni: postulacionDataFromDb.dni ?? '',
-        imagen_frente_url: postulacionDataFromDb.imagen_frente_url ?? '',
-        imagen_dorso_url: postulacionDataFromDb.imagen_dorso_url ?? '',
-      });
+      try {
+        const pdfUrl = await generarPostulacionPdf({
+          nombre_completo: postulacionData.nombre_completo ?? '',
+          dni: postulacionData.dni ?? '',
+          imagen_frente_url: postulacionData.imagen_frente_url ?? '',
+          imagen_dorso_url: postulacionData.imagen_dorso_url ?? '',
+        });
 
-      // Update the postulacion with the PDF URL
-      const { error: pdfUpdateError } = await supabaseAdmin
-        .from('postulaciones')
-        .update({ pdf_url: pdfUrl, estado: 'lista_para_revision' })
-        .eq('id', postulacionId);
-
-      if (pdfUpdateError) {
-        return '❌ Error al guardar el PDF. Intentá de nuevo.';
+        await supabaseAdmin
+          .from('postulaciones')
+          .update({ pdf_url: pdfUrl, estado: 'lista_para_revision' })
+          .eq('id', postulacionId);
+      } catch {
+        await supabaseAdmin
+          .from('postulaciones')
+          .update({ estado: 'lista_para_revision' })
+          .eq('id', postulacionId);
       }
 
-      // We'll return a success message and end the flow
-      return `✅ Tu postulación ha sido completada exitosamente.
-Tu PDF está disponible en: ${pdfUrl}
-Un administrador revisará tu postulación y se pondrá en contacto contigo.`.trim();
+      return '✅ ¡Postulación completada! Un administrador la revisará y se comunicará con vos.';
+    }
 
     default:
-      return '❌ Paso de postulación no reconocido. Empecemos de nuevo: escribí "ser pasador".';
+      return '❌ Paso no reconocido. Escribí "ser pasador" para empezar de nuevo.';
   }
 }
 
