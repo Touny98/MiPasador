@@ -38,40 +38,63 @@ export default function PasadoresPage() {
   }
 
   async function handleToggleActivo(id: number, currentActivo: boolean) {
-    const { error } = await supabaseAdmin
-      .from('pasadores')
-      .update({ activo: !currentActivo })
-      .eq('id', id);
+    try {
+      const res = await fetch(`/api/admin/pasadores`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id,
+          action: 'toggle',
+        }),
+      });
 
-    if (error) {
-      console.error('Error updating activo:', error);
-      // In a real app, show a toast
-    } else {
+      if (!res.ok) {
+        throw new Error('Failed to toggle activo');
+      }
+
+      const updatedPasador = await res.json();
+
       // Optimistic update
       setPasadores(
         pasadores.map((p) =>
-          p.id === id ? { ...p, activo: !currentActivo } : p
+          p.id === id ? { ...p, activo: updatedPasador.activo } : p
         )
       );
+    } catch (err) {
+      console.error('Error toggling activo:', err);
+      // In a real app, show a toast
     }
   }
 
   async function handleSuspender(id: number) {
-    // We'll suspend by setting activo to false and maybe adding a reason?
-    // For simplicity, just set activo to false
-    const { error } = await supabaseAdmin
-      .from('pasadores')
-      .update({ activo: false })
-      .eq('id', id);
+    try {
+      const res = await fetch(`/api/admin/pasadores`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id,
+          action: 'suspend',
+        }),
+      });
 
-    if (error) {
-      console.error('Error suspending pasador:', error);
-    } else {
+      if (!res.ok) {
+        throw new Error('Failed to suspend pasador');
+      }
+
+      const updatedPasador = await res.json();
+
       setPasadores(
         pasadores.map((p) =>
-          p.id === id ? { ...p, activo: false } : p
+          p.id === id ? { ...p, activo: updatedPasador.activo } : p
         )
       );
+    } catch (err) {
+      console.error('Error suspending pasador:', err);
+      // In a real app, show a toast
     }
   }
 
