@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { verifyWebhookSignature } from '@/lib/utils/webhookVerification';
 import { saveIncomingMessage } from '@/lib/services/messageService';
-import { handleIncomingMessage } from '@/lib/bot/dispatcher';
+import { handleIncomingMessage, handleInteractiveMessage } from '@/lib/bot/dispatcher';
 import { WhatsAppWebhookPayload, MessageIdMeta } from '@/lib/messaging/types';
 
 // GET handler for webhook verification
@@ -64,12 +64,28 @@ export async function POST(request: NextRequest) {
               return null;
             });
 
-            if (message.type === 'text' && message.text?.body && saveResult) {
+            if (saveResult) {
               const { merchantId, conversationId } = saveResult;
-              try {
-                await handleIncomingMessage(message.from, message.text.body, merchantId ?? '', conversationId ?? '');
-              } catch (err) {
-                console.error('Failed to handle incoming message:', err);
+              if (message.type === 'text' && message.text?.body) {
+                try {
+                  await handleIncomingMessage(message.from, message.text.body, merchantId ?? '', conversationId ?? '');
+                } catch (err) {
+                  console.error('Failed to handle incoming message:', err);
+                }
+              } else if (message.interactive) {
+                let replyId: string | undefined;
+                if (message.interactive.button_reply) {
+                  replyId = message.interactive.button_reply.id;
+                } else if (message.interactive.list_reply) {
+                  replyId = message.interactive.list_reply.id;
+                }
+                if (replyId) {
+                  try {
+                    await handleInteractiveMessage(message.from, replyId, merchantId ?? '', conversationId ?? '');
+                  } catch (err) {
+                    console.error('Failed to handle interactive message:', err);
+                  }
+                }
               }
             }
           }

@@ -1,3 +1,19 @@
+export interface InteractiveButton {
+  id: string;
+  title: string;
+}
+
+export interface ListItem {
+  id: string;
+  title: string;
+  description?: string;
+}
+
+export interface ListSection {
+  title?: string;
+  rows: ListItem[];
+}
+
 export class MetaCloudProvider {
   private accessToken: string;
   private phoneNumberId: string;
@@ -27,6 +43,57 @@ export class MetaCloudProvider {
       body: JSON.stringify(body),
     };
     await this.fetchWithRetry(url, options);
+  }
+
+  async sendInteractiveButtons(
+    to: string,
+    body: string,
+    buttons: InteractiveButton[],
+    header?: string,
+    footer?: string
+  ): Promise<void> {
+    const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
+    const interactive: Record<string, unknown> = {
+      type: 'button',
+      body: { text: body },
+      action: {
+        buttons: buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title } })),
+      },
+    };
+    if (header) interactive.header = { type: 'text', text: header };
+    if (footer) interactive.footer = { text: footer };
+
+    const msgBody = { messaging_product: 'whatsapp', to, type: 'interactive', interactive };
+    await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(msgBody),
+    });
+  }
+
+  async sendList(
+    to: string,
+    body: string,
+    buttonLabel: string,
+    sections: ListSection[],
+    header?: string,
+    footer?: string
+  ): Promise<void> {
+    const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
+    const interactive: Record<string, unknown> = {
+      type: 'list',
+      body: { text: body },
+      action: { button: buttonLabel, sections },
+    };
+    if (header) interactive.header = { type: 'text', text: header };
+    if (footer) interactive.footer = { text: footer };
+
+    const msgBody = { messaging_product: 'whatsapp', to, type: 'interactive', interactive };
+    await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(msgBody),
+    });
   }
 
   private async fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
