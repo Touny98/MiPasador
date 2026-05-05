@@ -1,3 +1,5 @@
+"use client";
+
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { useState, useEffect } from 'react';
 
