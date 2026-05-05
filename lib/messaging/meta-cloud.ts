@@ -1,7 +1,7 @@
 export class MetaCloudProvider {
   private accessToken: string;
   private phoneNumberId: string;
-  private readonly apiVersion = 'v18.0';
+  private readonly apiVersion = 'v21.0';
   private readonly baseUrl: string;
 
   constructor(accessToken: string, phoneNumberId: string) {
