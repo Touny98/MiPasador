@@ -1,6 +1,5 @@
 "use client";
 
-import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { useState, useEffect } from 'react';
 
 export default function PasadoresPage() {
@@ -14,21 +13,28 @@ export default function PasadoresPage() {
 
   async function fetchPasadores() {
     setLoading(true);
-    let query = supabaseAdmin.from('pasadores').select('*');
-
-    if (search) {
-      query = query.or(`nombre_completo.ilike.%${search}%,dni.ilike.%${search}%`);
+    try {
+      const res = await fetch(`/api/admin/pasadores`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch pasadores');
+      }
+      const data = await res.json();
+      // Apply search filter on the client side for simplicity
+      const filtered = data.filter((p: any) => {
+        if (!search) return true;
+        const searchLower = search.toLowerCase();
+        return (
+          (p.nombre_completo?.toLowerCase().includes(searchLower) ?? false) ||
+          (p.dni?.toLowerCase().includes(searchLower) ?? false)
+        );
+      });
+      setPasadores(filtered);
+    } catch (err) {
+      console.error('Error fetching pasadores:', err);
+      // Keep pasadores as empty array
+    } finally {
+      setLoading(false);
     }
-
-    const { data, error } = await query.order('nombre_completo');
-
-    if (error) {
-      console.error('Error fetching pasadores:', error);
-    } else {
-      setPasadores(data || []);
-    }
-
-    setLoading(false);
   }
 
   async function handleToggleActivo(id: number, currentActivo: boolean) {
