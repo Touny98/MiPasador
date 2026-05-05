@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { useState, useEffect } from 'react';
 
-export default function ViajesPage() {
+export function ViajesContent() {
   const [viajes, setViajes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({

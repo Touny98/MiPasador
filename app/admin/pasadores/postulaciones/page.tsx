@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-export default function PostulacionesPage() {
+export function PostulacionesContent() {
   const [postulaciones, setPostulaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('todos'); // todos, pendiente, lista_para_revision, requiere_correccion, aceptada, denegada

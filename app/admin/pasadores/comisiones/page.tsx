@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { useState, useEffect } from 'react';
 
-export default function ComisionesPage() {
+export function ComisionesContent() {
   const [comisiones, setComisiones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterPasador, setFilterPasador] = useState(''); // search by pasador name or dni

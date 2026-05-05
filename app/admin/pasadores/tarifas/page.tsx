@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { useState, useEffect } from 'react';
 
-export default function TarifasPage() {
+export function TarifasContent() {
   const [tarifas, setTarifas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
