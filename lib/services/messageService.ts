@@ -92,7 +92,7 @@ export async function saveIncomingMessage(message: WhatsAppMessage, phoneNumberI
     }
 
     // 3. Save the message
-    const content = message.type === 'text' ? message.text?.body : JSON.stringify(message);
+    const content = message.type === 'text' ? (message.text?.body ?? '') : JSON.stringify(message);
     const messageType = message.type;
 
     // ignoreDuplicates: true silently skips if whatsapp_message_id already exists
@@ -106,7 +106,7 @@ export async function saveIncomingMessage(message: WhatsAppMessage, phoneNumberI
           direction: 'incoming',
           message_type: messageType,
           whatsapp_message_id: message.id,
-          metadata: { raw: message, timestamp: message.timestamp },
+          metadata: { raw: message as unknown, timestamp: message.timestamp } as unknown as import('@/lib/database.types').Json,
         },
         { onConflict: 'whatsapp_message_id', ignoreDuplicates: true }
       );

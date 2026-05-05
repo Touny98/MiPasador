@@ -1,9 +1,12 @@
 import { MetaCloudProvider, ListSection } from '../messaging/meta-cloud';
 import { searchProducts } from '@/lib/search/products';
 import { normalizeQuery } from '@/lib/search/intent-parser';
-import { supabaseAdmin } from '@/lib/utils/supabase';
+import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { createReservation } from '@/lib/services/reservationService';
 import { MSG, truncate, parseReserveButtonId, isGreeting, isMenuRequest } from './messages';
+import { detectarIntencionPasador, manejarSolicitud, manejarComando, manejarPostulacion } from '@/lib/pasador/flows';
+import { getOrCreateConversationContext, setConversationContext } from '@/lib/services/pasadorService';
+import type { Json } from '@/lib/database.types';
 
 function generateReservationCode(): string {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -187,26 +190,61 @@ export async function handleIncomingMessage(
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
 
+  // Pasador commands take priority (start with *)
+  if (trimmed.startsWith('*')) {
+    const resp = await manejarComando(from, trimmed.substring(1));
+    await metaProvider.sendMessage(from, resp).catch(() => {});
+    return;
+  }
+
+  // Pasador / postulacion flow routing
+  if (conversationId) {
+    const rawCtx = await getOrCreateConversationContext(conversationId);
+    const ctx = (rawCtx ?? {}) as Record<string, unknown>;
+
+    if (ctx.pasador_flow) {
+      const { respuesta, estado } = await manejarSolicitud(from, trimmed, ctx);
+      const updatedCtx = estado.step === 'inicio'
+        ? { ...ctx, pasador_flow: null }
+        : { ...ctx, pasador_flow: estado };
+      await setConversationContext(conversationId, updatedCtx as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, respuesta).catch(() => {});
+      return;
+    }
+
+    if (ctx.postulacion_paso) {
+      const respuesta = await manejarPostulacion(from, ctx.postulacion_paso as string, trimmed);
+      const [msg, nextPaso] = respuesta.split('|||');
+      const updatedCtx = nextPaso
+        ? { ...ctx, postulacion_paso: nextPaso }
+        : { ...ctx, postulacion_paso: null };
+      await setConversationContext(conversationId, updatedCtx as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, msg).catch(() => {});
+      return;
+    }
+  }
+
+  // Purchase intent handling
+  let purchaseIntentMatched = false;
+
   if (isGreeting(lower)) {
     await sendWelcome(from, merchantId);
-    return;
-  }
-
-  if (isMenuRequest(lower)) {
+    purchaseIntentMatched = true;
+  } else if (isMenuRequest(lower)) {
     await sendMenu(from);
-    return;
-  }
-
-  if (lower.includes('reservar')) {
+    purchaseIntentMatched = true;
+  } else if (lower.includes('reservar')) {
     const productQuery = lower.replace('reservar', '').trim();
 
     if (!productQuery) {
       await metaProvider.sendMessage(from, MSG.RESERVE_MISSING_PRODUCT).catch(() => {});
+      purchaseIntentMatched = true;
       return;
     }
 
     if (!conversationId) {
       await metaProvider.sendMessage(from, MSG.NO_CONVERSATION).catch(() => {});
+      purchaseIntentMatched = true;
       return;
     }
 
@@ -216,6 +254,7 @@ export async function handleIncomingMessage(
 
       if (!topProduct) {
         await metaProvider.sendMessage(from, MSG.NO_PRODUCT_FOR_RESERVE).catch(() => {});
+        purchaseIntentMatched = true;
         return;
       }
 
@@ -229,13 +268,37 @@ export async function handleIncomingMessage(
       });
       await metaProvider.sendMessage(from, MSG.RESERVE_CONFIRM(topProduct.name, reservationCode)).catch(() => {});
       console.log(`New reservation for merchant ${merchantId}: Code ${reservationCode}, Product ${topProduct.name}, Conversation ${conversationId}`);
+      purchaseIntentMatched = true;
       return;
     } catch (error) {
       console.error('Error processing reservation:', error);
       await metaProvider.sendMessage(from, MSG.RESERVE_ERROR).catch(() => {});
+      purchaseIntentMatched = true;
+      return;
+    }
+  } else {
+    await handleSearch(from, trimmed, merchantId, conversationId);
+    purchaseIntentMatched = true;
+  }
+
+  // If no purchase intent matched, check for pasador intents
+  if (!purchaseIntentMatched && conversationId) {
+    const rawCtx = await getOrCreateConversationContext(conversationId);
+    const ctx = (rawCtx ?? {}) as Record<string, unknown>;
+
+    const intencion = detectarIntencionPasador(lower);
+    if (intencion === 'solicitar') {
+      const { respuesta, estado } = await manejarSolicitud(from, trimmed, ctx);
+      await setConversationContext(conversationId, { ...ctx, pasador_flow: estado } as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, respuesta).catch(() => {});
+      return;
+    }
+    if (intencion === 'postular') {
+      const respuesta = await manejarPostulacion(from, 'inicio', trimmed);
+      const [msg, nextPaso] = respuesta.split('|||');
+      await setConversationContext(conversationId, { ...ctx, postulacion_paso: nextPaso ?? 'nombre' } as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, msg).catch(() => {});
       return;
     }
   }
-
-  await handleSearch(from, trimmed, merchantId, conversationId);
 }

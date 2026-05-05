@@ -1,0 +1,32 @@
+
+> mi-pasador@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.15
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.0.128:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.4s
+ ○ Compiling /api/wa/webhook ...
+ ✓ Compiled /api/wa/webhook in 928ms (348 modules)
+ POST /api/wa/webhook 200 in 4124ms
+ POST /api/wa/webhook 200 in 2275ms
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 635ms (168 modules)
+ ✓ Compiled in 314ms (363 modules)
+   Reload env: .env.local
+ ✓ Compiled in 148ms (363 modules)
+ ✓ Compiled in 68ms (168 modules)
+ ✓ Compiled in 99ms (168 modules)
+ ✓ Compiled in 102ms (168 modules)
+ ✓ Compiled in 176ms (168 modules)
+ ✓ Compiled in 175ms (363 modules)
+   Reload env: .env.local
+ ✓ Compiled in 159ms (363 modules)
+ ✓ Compiled in 74ms (363 modules)
+   Reload env: .env.local
+ ✓ Compiled in 114ms (363 modules)
+   Reload env: .env.local
+ ✓ Compiled in 88ms (363 modules)

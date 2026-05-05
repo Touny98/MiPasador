@@ -10,7 +10,7 @@ jest.mock('../lib/messaging/meta-cloud', () => ({
   })),
 }));
 
-jest.mock('@/lib/utils/supabase', () => ({
+jest.mock('@/lib/utils/supabase/admin', () => ({
   supabaseAdmin: { from: jest.fn() },
 }));
 
@@ -20,6 +20,13 @@ jest.mock('@/lib/search/products', () => ({
 
 jest.mock('@/lib/services/reservationService', () => ({
   createReservation: jest.fn(),
+}));
+
+jest.mock('@/lib/pasador/flows', () => ({
+  detectarIntencionPasador: jest.fn(),
+  manejarSolicitud: jest.fn(),
+  manejarComando: jest.fn(),
+  manejarPostulacion: jest.fn(),
 }));
 
 describe('Bot dispatcher', () => {
@@ -158,5 +165,93 @@ describe('Bot dispatcher', () => {
     expect(metaMock.sendMessage).toHaveBeenCalled();
     expect(metaMock.sendMessage.mock.calls[0][0]).toBe('123');
     expect(metaMock.sendMessage.mock.calls[0][1]).toContain('Escribí el nombre del producto que buscás');
+  });
+
+  // --- Pasador flow tests ---
+
+  test('pasador solicitation flow: start with location request', async () => {
+    // Mock detectarIntencionPasador to return 'solicitar' for "pasador"
+    const { detectarIntencionPasador } = require('@/lib/pasador/flows');
+    (detectarIntencionPasador as jest.Mock).mockReturnValueOnce('solicitar');
+
+    // Mock manejarSolicitud to return a response asking for location
+    const { manejarSolicitud } = require('@/lib/pasador/flows');
+    (manejarSolicitud as jest.Mock).mockResolvedValueOnce({
+      respuesta: '📍 Por favor, compartí tu ubicación actual (puedes usar el botón de ubicación de WhatsApp o escribir tu dirección).',
+      estado: {
+        paso: 'ubicacion',
+        datos: {}
+      }
+    });
+
+    await handleIncomingMessage('123', 'pasador');
+
+    expect(detectarIntencionPasador).toHaveBeenCalledWith('pasador');
+    expect(manejarSolicitud).toHaveBeenCalledWith('123', 'pasador', {});
+    expect(metaMock.sendMessage).toHaveBeenCalled();
+    expect(metaMock.sendMessage.mock.calls[0][0]).toBe('123');
+    expect(metaMock.sendMessage.mock.calls[0][1]).toContain('compartí tu ubicación');
+  });
+
+  test('pasador solicitation flow: location step asks for route', async () => {
+    // Mock detectarIntencionPasador to return null (not a new solicitud)
+    const { detectarIntencionPasador } = require('@/lib/pasador/flows');
+    (detectarIntencionPasador as jest.Mock).mockReturnValueOnce(null);
+
+    // Mock manejarSolicitud to handle the ubicacion step
+    const { manejarSolicitud } = require('@/lib/pasador/flows');
+    (manejarSolicitud as jest.Mock).mockResolvedValueOnce({
+      respuesta: '🛣️ Ahora, indicá la ruta (por ejemplo: "Centro - Aeropuerto" o "Casa - Trabajo"):',
+      estado: {
+        paso: 'ruta',
+        datos: {
+          ubicacion: { lat: -34.6037, lng: -58.3816 }
+        }
+      }
+    });
+
+    // Simulate sending location (we'll simulate by sending coordinates as text)
+    await handleIncomingMessage('123', '-34.6037,-58.3816');
+
+    expect(detectarIntencionPasador).toHaveBeenCalledWith('-34.6037,-58.3816');
+    expect(manejarSolicitud).toHaveBeenCalledWith(
+      '123',
+      '-34.6037,-58.3816',
+      { pasador_flow: { paso: 'ubicacion', datos: {} } }
+    );
+    expect(metaMock.sendMessage).toHaveBeenCalled();
+    expect(metaMock.sendMessage.mock.calls[0][0]).toBe('123');
+    expect(metaMock.sendMessage.mock.calls[0][1]).toContain('indicá la ruta');
+  });
+
+  test('pasador comandos: *ACTIVO activates pasador', async () => {
+    // Mock manejarComando to return activation response
+    const { manejarComando } = require('@/lib/pasador/flows');
+    (manejarComando as jest.Mock).mockResolvedValueOnce('✅ Estás activo, esperando viajes.');
+
+    await handleIncomingMessage('123', '*ACTIVO');
+
+    expect(manejarComando).toHaveBeenCalledWith('123', 'ACTIVO');
+    expect(metaMock.sendMessage).toHaveBeenCalled();
+    expect(metaMock.sendMessage.mock.calls[0][0]).toBe('123');
+    expect(metaMock.sendMessage.mock.calls[0][1]).toContain('Estás activo');
+  });
+
+  test('pasador postulation flow: start with name request', async () => {
+    // Mock detectarIntencionPasador to return 'postular' for "ser pasador"
+    const { detectarIntencionPasador } = require('@/lib/pasador/flows');
+    (detectarIntencionPasador as jest.Mock).mockReturnValueOnce('postular');
+
+    // Mock manejarPostulacion to return a response asking for name
+    const { manejarPostulacion } = require('@/lib/pasador/flows');
+    (manejarPostulacion as jest.Mock).mockResolvedValueOnce('📄 Vamos a iniciar tu postulación como pasador. Por favor, ingresá tu nombre completo:');
+
+    await handleIncomingMessage('123', 'ser pasador');
+
+    expect(detectarIntencionPasador).toHaveBeenCalledWith('ser pasador');
+    expect(manejarPostulacion).toHaveBeenCalledWith('123', 'inicio', 'ser pasador', []);
+    expect(metaMock.sendMessage).toHaveBeenCalled();
+    expect(metaMock.sendMessage.mock.calls[0][0]).toBe('123');
+    expect(metaMock.sendMessage.mock.calls[0][1]).toContain('ingresá tu nombre completo');
   });
 });

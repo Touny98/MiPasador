@@ -1,0 +1,5 @@
+ ⚠ Port 3000 is in use by process 11588, using available port 3001 instead.
+WhatsApp send failed (non-fatal in dev): Non-retryable HTTP 400
+Unresolved query: quiero un drone profesional dji mavic 3
+WhatsApp send failed (non-fatal in dev): Non-retryable HTTP 400
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (231kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)

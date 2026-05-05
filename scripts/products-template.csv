@@ -1,0 +1,4 @@
+merchant_name,name,description,price,currency,sku,category,stock,image_url,is_active
+Electrodomésticos Ejemplo,Freidora de Aire,Freidora sin aceite 4L,1200,BOB,FRY-AIR-4L,Electrodomésticos,10,https://example.com/freidora.jpg,true
+Perfumería Ejemplo,Perfume Floral,Fragancia floral femenina 50ml,250,BOB,PERF-FLORAL-50ML,Perfumería,30,https://example.com/perfume.jpg,true
+Calzado Ejemplo,Zapatillas Deportivas,Zapatillas running hombre 42,350,BOB,ZAPAT-RUN-42,Calzado,25,https://example.com/zapatillas.jpg,true
