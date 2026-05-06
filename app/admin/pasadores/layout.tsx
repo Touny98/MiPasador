@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from 'react';
+import { PostulacionesContent } from './_components/PostulacionesContent';
 import { PasadoresContent } from './_components/PasadoresContent';
 import { ViajesContent } from './_components/ViajesContent';
 import { ComisionesContent } from './_components/ComisionesContent';
-import { PostulacionesContent } from './_components/PostulacionesContent';
 import { TarifasContent } from './_components/TarifasContent';
+import { ReputacionContent } from './_components/ReputacionContent';
 
 export default function PasadoresLayout({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState('lista');
@@ -16,6 +17,7 @@ export default function PasadoresLayout({ children }: { children: React.ReactNod
     { id: 'comisiones', label: 'Comisiones', component: ComisionesContent },
     { id: 'postulaciones', label: 'Postulaciones', component: PostulacionesContent },
     { id: 'tarifas', label: 'Tarifas', component: TarifasContent },
+    { id: 'reputacion', label: 'Reputación', component: ReputacionContent },
   ];
 
   return (

@@ -12,6 +12,21 @@ export function ComisionesContent() {
     fetchComisiones();
   }, [filterPasador]);
 
+  async function markAsPaid(id: number, currentStatus: boolean) {
+    try {
+      const res = await fetch(`/api/admin/comisiones`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, pagado: !currentStatus }),
+      });
+      if (!res.ok) throw new Error('Failed to update payment status');
+      await fetchComisiones();
+    } catch (error) {
+      console.error('Error marking as paid:', error);
+      alert('Error al actualizar el estado de pago');
+    }
+  }
+
   async function fetchComisiones() {
     setLoading(true);
     try {
@@ -81,6 +96,12 @@ export function ComisionesContent() {
                 ) : (
                   <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-800">Pendiente</span>
                 )}
+                <button
+                  onClick={() => markAsPaid(c.id, c.pagado)}
+                  className="ml-2 px-2 py-1 text-xs rounded bg-gray-200 hover:bg-gray-300"
+                >
+                  {c.pagado ? 'Desmarcar' : 'Marcar Pagado'}
+                </button>
               </td>
               <td className="p-4 text-center">
                 {c.link_pago ? (

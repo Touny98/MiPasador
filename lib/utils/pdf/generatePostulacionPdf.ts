@@ -31,9 +31,31 @@ export async function generarPostulacionPdf(data: PostulacionPdfData): Promise<s
 
   doc.fontSize(14).text('Documentación adjunta', { underline: true });
   doc.moveDown(0.5);
-  doc.fontSize(12)
-    .text(`Frente DNI: ${data.imagen_frente_url || 'No proporcionado'}`)
-    .text(`Dorso DNI: ${data.imagen_dorso_url || 'No proporcionado'}`);
+  doc.fontSize(12);
+
+  if (data.imagen_frente_url) {
+    doc.text('Frente DNI:');
+    doc.image(data.imagen_frente_url, {
+      fit: [400, 300],
+      align: 'center'
+    });
+    doc.moveDown();
+  } else {
+    doc.text('Frente DNI: No proporcionado');
+    doc.moveDown();
+  }
+
+  if (data.imagen_dorso_url) {
+    doc.text('Dorso DNI:');
+    doc.image(data.imagen_dorso_url, {
+      fit: [400, 300],
+      align: 'center'
+    });
+    doc.moveDown();
+  } else {
+    doc.text('Dorso DNI: No proporcionado');
+    doc.moveDown();
+  }
 
   doc.end();
 

@@ -1,6 +1,13 @@
+import { MetaCloudProvider, ListSection } from '../messaging/meta-cloud';
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { generarLinkPago, registrarComision as registrarComisionMercadoPago } from '@/lib/pasador/comisiones';
 import { generarPostulacionPdf } from '@/lib/utils/pdf/generatePostulacionPdf';
+
+// Type for MetaCloudProvider - we should probably export this from meta-cloud.ts
+const metaProvider = new MetaCloudProvider(
+  process.env.META_ACCESS_TOKEN!,
+  process.env.META_PHONE_NUMBER_ID!
+);
 
 // Types for our flow state
 interface PasadorFlowState {
@@ -15,6 +22,7 @@ interface PasadorFlowState {
     viajeId?: number; // id of the viaje record
   };
 }
+
 
 // We'll store the state in the conversation context JSON under the key 'pasador_flow'
 const PASADOR_FLOW_KEY = 'pasador_flow';
@@ -79,11 +87,11 @@ export async function manejarSolicitud(
   // Step: ubicacion -> we expect to have location in state.data.ubicacion (set by webhook when location message received)
   // If we don't have it, we ask again.
   if (state.step === 'ubicacion') {
-    // Check if we have location (we assume the webhook will set state.data.ubicacion when a location message is received)
+    // Check if we have location
     if (!state.data.ubicacion) {
       // We don't have location yet, ask again
       return {
-        respuesta: '📍 Aún no recibí tu ubicación. Por favor, compartí tu ubicación actual (usando el botón de ubicación de WhatsApp).',
+        respuesta: '📍 Aún no recibí tu ubicación. Por favor, compartí tu ubicación actual (usando el botón de ubicación de WhatsApp) o escribí tu dirección actual.',
         estado: state
       };
     }
@@ -157,6 +165,7 @@ export async function manejarSolicitud(
         peso: state.data.peso,
         precio_ars: state.data.precio,
         estado: 'asignado',
+        ruta: state.data.ruta,
       })
       .select('id')
       .single();
@@ -369,7 +378,7 @@ export async function manejarComando(waUserId: string, comando: string): Promise
       // So we'll return that string for the pasador, and the integrator will also send a message to the user.
       // We'll leave the notification to the integrator.
 
-      return '✅ Pasador aceptó, en camino.';
+      return '✅ Pasador aceptó, en camino. Notificando al usuario...';
     }
 
     case 'RECHAZO': {

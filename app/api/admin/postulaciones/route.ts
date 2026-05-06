@@ -30,7 +30,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { id, action } = await request.json();
+    const body = await request.json();
+    const { id, action } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
         .eq('id', id);
     } else if (action === 'correccion') {
       // Expecting campos and observacion in the request body
-      const { campos, observacion } = await request.json();
+      const { campos, observacion } = body;
 
       await supabaseAdmin
         .from('postulaciones')

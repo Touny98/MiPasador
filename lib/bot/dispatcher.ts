@@ -212,6 +212,19 @@ export async function handleIncomingMessage(
       return;
     }
 
+    // Handle location messages for pasador flow
+    if (ctx.pasador_flow?.step === 'ubicacion' && trimmed.startsWith('LOCATION:')) {
+        const [lat, lng] = trimmed.replace('LOCATION:', '').split(',');
+        const updatedFlow = {
+            ...ctx.pasador_flow,
+            data: { ...ctx.pasador_flow.data, ubicacion: { lat: parseFloat(lat), lng: parseFloat(lng) } }
+        };
+        const { respuesta } = await manejarSolicitud(from, 'trigger_next', updatedFlow); // Trigger next step
+        await setConversationContext(conversationId, { ...ctx, pasador_flow: updatedFlow } as unknown as Json).catch(() => {});
+        await metaProvider.sendMessage(from, respuesta).catch(() => {});
+        return;
+    }
+
     if (ctx.postulacion_paso) {
       const respuesta = await manejarPostulacion(from, ctx.postulacion_paso as string, trimmed);
       const [msg, nextPaso] = respuesta.split('|||');
