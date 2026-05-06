@@ -14,31 +14,14 @@ export function ComisionesContent() {
 
   async function fetchComisiones() {
     setLoading(true);
-    let query = supabaseAdmin
-      .from('comisiones')
-      .select(`
-        id,
-        fecha,
-        total_viajes,
-        monto_comision,
-        link_pago,
-        pagado,
-        pasadores!comisiones_pasador_id_fkey(nombre_completo, dni)
-      `)
-      .order('fecha', { ascending: false });
+    try {
+      const res = await fetch(`/api/admin/comisiones?filterPasador=${filterPasador}`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch comisiones');
+      }
+      const data = await res.json();
 
-    if (filterPasador) {
-      query = query.or(
-        `pasadores.nombre_completo.ilike.%${filterPasador}%,pasadores.dni.ilike.%${filterPasador}%`
-      );
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching comisiones:', error);
-    } else {
-      const processed = (data || []).map((c) => ({
+      const processed = (data || []).map((c: any) => ({
         id: c.id,
         fecha: c.fecha ? new Date(c.fecha).toLocaleDateString() : '---',
         total_viajes: c.total_viajes || 0,
@@ -49,9 +32,11 @@ export function ComisionesContent() {
         dni: c.pasadores?.dni || '---',
       }));
       setComisiones(processed);
+    } catch (error) {
+      console.error('Error fetching comisiones:', error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   if (loading) {

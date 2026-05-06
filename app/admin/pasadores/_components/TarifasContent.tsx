@@ -34,17 +34,18 @@ export function TarifasContent() {
 
   async function fetchTarifas() {
     setLoading(true);
-    const { data, error } = await supabaseAdmin
-      .from('tarifas_pasador')
-      .select('*')
-      .order('ruta');
-
-    if (error) {
-      console.error('Error fetching tarifas:', error);
-    } else {
+    try {
+      const res = await fetch(`/api/admin/tarifas`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch tarifas');
+      }
+      const data = await res.json();
       setTarifas(data || []);
+    } catch (error) {
+      console.error('Error fetching tarifas:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
@@ -65,27 +66,23 @@ export function TarifasContent() {
       return;
     }
 
-    if (editId) {
-      const { error } = await supabaseAdmin
-        .from('tarifas_pasador')
-        .update({ ruta, peso_min, peso_max, precio_ars, activa })
-        .eq('id', editId);
-      if (error) {
-        console.error('Error updating tarifa:', error);
-      } else {
-        setEditId(null);
-        setForm({ ruta: '', peso_min: null, peso_max: null, precio_ars: null, activa: true });
-      }
-    } else {
-      const { error } = await supabaseAdmin
-        .from('tarifas_pasador')
-        .insert({ ruta, peso_min, peso_max, precio_ars, activa });
-      if (error) {
-        console.error('Error inserting tarifa:', error);
-      } else {
-        setForm({ ruta: '', peso_min: null, peso_max: null, precio_ars: null, activa: true });
-      }
+    try {
+      const res = await fetch(`/api/admin/tarifas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editId, // null if new
+          ruta, peso_min, peso_max, precio_ars, activa
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to save tarifa');
+
+      setEditId(null);
+      setForm({ ruta: '', peso_min: null, peso_max: null, precio_ars: null, activa: true });
+    } catch (error) {
+      console.error('Error saving tarifa:', error);
     }
+
     await fetchTarifas();
   }
 
@@ -96,12 +93,17 @@ export function TarifasContent() {
 
   async function handleDelete(id: number) {
     if (!window.confirm('¿Está seguro de eliminar esta tarifa?')) return;
-    const { error } = await supabaseAdmin.from('tarifas_pasador').delete().eq('id', id);
-    if (error) {
+    try {
+      const res = await fetch(`/api/admin/tarifas`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error('Failed to delete tarifa');
+    } catch (error) {
       console.error('Error deleting tarifa:', error);
-    } else {
-      await fetchTarifas();
     }
+    await fetchTarifas();
   }
 
   if (loading) return <div className="p-6">Cargando...</div>;

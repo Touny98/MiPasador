@@ -18,31 +18,14 @@ export function ViajesContent() {
 
   async function fetchViajes() {
     setLoading(true);
-    let query = supabaseAdmin
-      .from('viajes')
-      .select(`
-        id,
-        usuario_wa_id,
-        pasadores!viajes_pasador_id_fkey(nombre_completo),
-        direccion_origen,
-        direccion_destino,
-        peso,
-        precio_ars,
-        estado,
-        completado_at,
-        ratings!viajes_pasador_id_fkey(puntuacion)
-      `);
+    try {
+      const res = await fetch(`/api/admin/viajes?estado=${filters.estado}&fechaDesde=${filters.fechaDesde}&fechaHasta=${filters.fechaHasta}`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch viajes');
+      }
+      const data = await res.json();
 
-    if (filters.estado) query = query.eq('estado', filters.estado);
-    if (filters.fechaDesde) query = query.gte('creado_at', filters.fechaDesde);
-    if (filters.fechaHasta) query = query.lte('creado_at', filters.fechaHasta);
-
-    const { data, error } = await query.order('creado_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching viajes:', error);
-    } else {
-      const processed = (data || []).map((v) => ({
+      const processed = (data || []).map((v: any) => ({
         id: v.id,
         usuario: v.usuario_wa_id || '---',
         pasador: v.pasadores?.nombre_completo || '---',
@@ -57,9 +40,11 @@ export function ViajesContent() {
             : null,
       }));
       setViajes(processed);
+    } catch (error) {
+      console.error('Error fetching viajes:', error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   if (loading) {
