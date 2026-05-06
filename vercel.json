@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/refresh-rates",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/follow-up",
+      "schedule": "0 * * * *"
     }
   ]
 }

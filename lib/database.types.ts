@@ -4,7 +4,7 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
+  | Json[]
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_eventos: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          id: number
+          merchant_id: string | null
+          metadata: Json | null
+          producto_id: string | null
+          tipo: string
+          wa_user_id: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: number
+          merchant_id?: string | null
+          metadata?: Json | null
+          producto_id?: string | null
+          tipo: string
+          wa_user_id?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: number
+          merchant_id?: string | null
+          metadata?: Json | null
+          producto_id?: string | null
+          tipo?: string
+          wa_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_eventos_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytics_eventos_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comisiones: {
         Row: {
           created_at: string | null
@@ -59,8 +107,12 @@ export type Database = {
         Row: {
           context: Json | null
           created_at: string | null
+          follow_up_last_at: string | null
+          follow_up_pendiente: boolean
+          follow_up_sent_count: number
           id: string
           is_active: boolean | null
+          last_interaction_at: string | null
           merchant_id: string | null
           updated_at: string | null
           user_name: string | null
@@ -69,8 +121,12 @@ export type Database = {
         Insert: {
           context?: Json | null
           created_at?: string | null
+          follow_up_last_at?: string | null
+          follow_up_pendiente?: boolean
+          follow_up_sent_count?: number
           id?: string
           is_active?: boolean | null
+          last_interaction_at?: string | null
           merchant_id?: string | null
           updated_at?: string | null
           user_name?: string | null
@@ -79,8 +135,12 @@ export type Database = {
         Update: {
           context?: Json | null
           created_at?: string | null
+          follow_up_last_at?: string | null
+          follow_up_pendiente?: boolean
+          follow_up_sent_count?: number
           id?: string
           is_active?: boolean | null
+          last_interaction_at?: string | null
           merchant_id?: string | null
           updated_at?: string | null
           user_name?: string | null
@@ -169,6 +229,54 @@ export type Database = {
           timestamp?: string | null
         }
         Relationships: []
+      }
+      follow_ups: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          follow_up_day: number
+          id: string
+          product_id: string | null
+          product_name: string
+          scheduled_at: string
+          sent_at: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string | null
+          follow_up_day: number
+          id?: string
+          product_id?: string | null
+          product_name: string
+          scheduled_at: string
+          sent_at?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string | null
+          follow_up_day?: number
+          id?: string
+          product_id?: string | null
+          product_name?: string
+          scheduled_at?: string
+          sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_ups_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_ups_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       merchants: {
         Row: {
@@ -282,7 +390,37 @@ export type Database = {
           nombre_completo?: string | null
           reputacion_promedio?: number | null
           ultima_conexion?: string | null
-          wa_user_id?: string | null
+          wa_user_id?: string
+        }
+        Relationships: []
+      }
+      plantillas_seguimiento: {
+        Row: {
+          activa: boolean
+          condicion: string
+          created_at: string
+          dias_delay: number
+          id: number
+          merchant_id: string | null
+          texto: string
+        }
+        Insert: {
+          activa?: boolean
+          condicion: string
+          created_at?: string
+          dias_delay: number
+          id?: number
+          merchant_id?: string | null
+          texto: string
+        }
+        Update: {
+          activa?: boolean
+          condicion?: string
+          created_at?: string
+          dias_delay?: number
+          id?: number
+          merchant_id?: string | null
+          texto?: string
         }
         Relationships: []
       }
@@ -303,7 +441,7 @@ export type Database = {
           correcciones?: Json | null
           created_at?: string | null
           dni?: string | null
-          estado: string | null
+          estado?: string | null
           id?: number
           imagen_dorso_url?: string | null
           imagen_frente_url?: string | null
@@ -340,6 +478,7 @@ export type Database = {
           price: number | null
           sku: string | null
           stock: number | null
+          total_reservations: number | null
           updated_at: string | null
         }
         Insert: {
@@ -356,6 +495,7 @@ export type Database = {
           price?: number | null
           sku?: string | null
           stock?: number | null
+          total_reservations?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -372,6 +512,7 @@ export type Database = {
           price?: number | null
           sku?: string | null
           stock?: number | null
+          total_reservations?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -657,20 +798,16 @@ export type Database = {
       search_products: {
         Args: { merchant?: string; query_text: string }
         Returns: {
-          category: string | null
-          created_at: string | null
-          currency: string | null
-          description: string | null
+          category: string
+          description: string
           id: string
-          image_url: string | null
-          is_active: boolean | null
-          merchant_id: string | null
+          image_url: string
+          merchant_id: string
           name: string
-          normalized_name: string | null
-          price: number | null
-          sku: string | null
-          stock: number | null
-          updated_at: string | null
+          normalized_name: string
+          price: number
+          stock: number
+          total_reservations: number
         }[]
       }
       show_limit: { Args: never; Returns: number }
@@ -709,13 +846,15 @@ export type Tables<
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-    ? R
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
     : never
-  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
@@ -735,12 +874,12 @@ export type TablesInsert<
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-      Insert: infer I
-    }
-    ? I
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
     : never
-  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
@@ -760,12 +899,12 @@ export type TablesUpdate<
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-      Update: infer U
-    }
-    ? U
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
     : never
-  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
@@ -781,8 +920,8 @@ export type Enums<
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
@@ -798,8 +937,8 @@ export type CompositeTypes<
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {

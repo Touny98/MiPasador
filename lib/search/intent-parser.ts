@@ -105,8 +105,17 @@ export function scoreProduct(
 }
 
 export function rerank(products: any[], intent: ReturnType<typeof parseIntent>): any[] {
+  if (products.length === 0) return [];
+
+  const maxReservations = Math.max(...products.map(p => p.total_reservations || 0));
+
   return products
-    .map((product) => ({ product, score: scoreProduct(product, intent) }))
+    .map((product) => {
+      const intentScore = scoreProduct(product, intent);
+      const popularityScore = maxReservations > 0 ? (product.total_reservations || 0) / maxReservations : 0;
+      const finalScore = intentScore * 0.7 + popularityScore * 0.3;
+      return { product, score: finalScore };
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
     .map((sp) => sp.product);

@@ -1,52 +1,89 @@
-export const MSG = {
-  WELCOME: (name: string) =>
-    `Hola! 👋 Soy el asistente de ${name}.\n\nPuedo ayudarte a:\n• Buscar productos\n• Hacer una reserva\n\nEscribí lo que buscás o escribí "menu" para ver las opciones.`,
+export const truncate = (str: string, max: number) =>
+  str.length > max ? str.substring(0, max - 3) + '...' : str;
 
-  NO_RESULTS:
-    'No encontré productos con esa búsqueda. 🤔\n\nProbá con otras palabras o escribí "menu".',
-
-  NO_PRODUCT_FOR_RESERVE:
-    'No encontré ese producto. 🤔\n\nEscribí el nombre de lo que querés reservar.',
-
-  RESERVE_MISSING_PRODUCT:
-    '¿Qué producto querés reservar? 🛍️\n\nEscribilo así: "reservar freidora"',
-
-  RESERVE_CONFIRM: (name: string, code: string) =>
-    `Reserva confirmada ✅\n\n📦 ${name}\n🔑 Código: ${code}\n\nEl negocio te va a contactar pronto para coordinar.`,
-
-  RESERVE_ERROR:
-    'Ups, algo salió mal. 😕\n\nIntentalo de nuevo o escribí "menu".',
-
-  GENERIC_ERROR:
-    'Ups, algo salió mal. 😕\n\nIntentalo de nuevo o escribí "menu".',
-
-  NO_CONVERSATION:
-    'No pudimos identificar tu conversación. Por favor, intentalo de nuevo.',
-
-  MENU_HEADER: 'Menú de opciones',
-  MENU_BODY: 'Tocá una opción para empezar 👇',
-  MENU_BUTTON: 'Ver opciones',
-
-  SEARCH_HEADER: (n: number) => `Encontré ${n} ${n === 1 ? 'opción' : 'opciones'}`,
-  SEARCH_BODY: 'Estos son los productos disponibles 👇',
-  SEARCH_BUTTON: 'Ver productos',
-
-  RESERVE_BUTTON_TITLE: 'Reservar este',
+export const parseReserveButtonId = (id: string) => {
+  if (id.startsWith('sales_reserve_')) return { type: 'reserve', productId: id.replace('sales_reserve_', '') };
+  if (id.startsWith('followup_reserve_')) return { type: 'reserve', productId: id.replace('followup_reserve_', '') };
+  if (id === 'sales_cheaper') return { type: 'cheaper' };
+  if (id === 'sales_more') return { type: 'more' };
+  if (id === 'sales_no_thanks' || id === 'followup_no_thanks') return { type: 'no_thanks' };
+  if (id.startsWith('reserve_')) return { type: 'reserve', productId: id.replace('reserve_', '') };
+  return { type: 'unknown' };
 };
 
-export function truncate(str: string, max: number): string {
-  return str.length > max ? str.slice(0, max - 3) + '...' : str;
-}
+export const isGreeting = (text: string) => {
+  const greetings = ['hola', 'buen día', 'buenas tardes', 'buenas noches', 'hey', 'hi'];
+  return greetings.some(g => text.toLowerCase().trim().startsWith(g));
+};
 
-export function parseReserveButtonId(id: string): string | null {
-  const match = id.match(/^reserve_(.+)$/);
-  return match ? match[1] : null;
-}
+export const isMenuRequest = (text: string) => {
+  const menus = ['menu', 'ayuda', 'opciones', 'qué puedo hacer'];
+  return menus.some(m => text.toLowerCase().includes(m));
+};
 
-export function isGreeting(text: string): boolean {
-  return /^(hola|buenas?|buenos\s+(dias|tardes|noches)|hi|hey|empezar|inicio)\b/i.test(text.trim());
-}
+export const isDoubtCheaper = (text: string) => {
+  const cheaper = ['más económico', 'más barato', 'algo económico', 'menor precio', 'barato'];
+  return cheaper.some(c => text.toLowerCase().includes(c));
+};
 
-export function isMenuRequest(text: string): boolean {
-  return /^(menu|ayuda|help|opciones|que\s+pod[eé]s?\s+hacer)\b/i.test(text.trim());
-}
+export const isDoubtBetter = (text: string) => {
+  const better = ['algo mejor', 'mejor calidad', 'más caro', 'premium'];
+  const t = text.toLowerCase().trim();
+  return better.some(b => t.includes(b));
+};
+
+export const isConfirmation = (text: string) => {
+  const confirms = ['sí', 'si', 'dale', 'ok', 'bueno', 'quiero', 'reserva', 'reservar'];
+  return confirms.some(c => {
+    const trimmed = text.toLowerCase().trim();
+    if (c.length <= 2) return trimmed === c;
+    return trimmed.includes(c);
+  });
+};
+
+export const isNegation = (text: string) => {
+  const negations = ['no', 'no gracias', 'nada', 'no quiero', 'no quiero reservar'];
+  return negations.some(n => {
+    const trimmed = text.toLowerCase().trim();
+    if (n.length <= 2) return trimmed === n;
+    return trimmed.includes(n);
+  });
+};
+
+export const MSG = {
+  WELCOME: () => "¡Hola! ¿Qué estás buscando? 👇",
+  NO_RESULTS: "No encontré eso 🤔\n¿Probás con otra palabra?",
+  NO_PRODUCT_FOR_RESERVE: "No encontré ese producto.\n¿Cómo se llama exactamente?",
+  RESERVE_MISSING_PRODUCT: "¿Qué querés reservar? 🛍️\nEscribí el nombre del producto.",
+  RESERVE_CONFIRM: (name: string, code: string) =>
+    `✅ Confirmado\n📦 ${name}\n🔑 Código: ${code}\nTe contactamos pronto 🤙`,
+  RESERVE_ERROR: "Ups, no pude hacer la reserva. 😕\nIntentalo de nuevo.",
+  GENERIC_ERROR: "Algo salió mal. 😕\nEscribí de nuevo.",
+  NO_CONVERSATION: "No pude identificar tu conversación.\nEscribí hola para empezar.",
+  MENU_HEADER: "¿Qué querés hacer?",
+  MENU_BODY: "Elegí una opción 👇",
+  MENU_BUTTON: "Ver opciones",
+  SEARCH_HEADER: (n: number) => n === 1 ? "👉 Encontré esto" : "Encontré estas opciones",
+  SEARCH_BODY: "La primera es la más elegida 👇",
+  SEARCH_BUTTON: "Ver opciones",
+  RESERVE_BUTTON_TITLE: "Sí, lo reservo",
+  PUSH_DECISION: "¿Lo querés? 👇",
+  DOUBT_CHEAPER: "Entendido 👍 Buscando algo más económico...",
+  DOUBT_BETTER: "Entendido 👍 Buscando algo mejor...",
+  RESERVE_PUSH: "Te lo puedo reservar ahora 👇\n¿Querés?",
+  CONFUSION: "¿Qué querés hacer? 👇",
+  FOLLOWUP_DAY1: (product: string) =>
+    `Hola 👋 ¿Seguís interesado en ${product}?\nLo puedo reservar ahora.`,
+  FOLLOWUP_DAY3: (product: string) =>
+    `Tenemos stock de ${product} 📦\n¿Lo reservamos?`,
+  FOLLOWUP_DAY7: (product: string) =>
+    `⏰ Últimas unidades de ${product}.\n¿Querés que te lo guarde?`,
+  NO_FOLLOWUP_RESPONSE: "Cuando quieras, acá estoy 👋",
+  BTN_RESERVE: "Sí, reservar",
+  BTN_CHEAPER: "Algo más económico",
+  BTN_BETTER: "Algo mejor",
+  BTN_NO_THANKS: "No, gracias",
+  BTN_MORE: "Ver más",
+  BTN_SEARCH: "Buscar algo",
+  BTN_TALK: "Hablar con alguien",
+};
