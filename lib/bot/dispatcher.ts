@@ -181,11 +181,35 @@ export async function handleInteractiveMessage(
   }
 }
 
+async function resolveMediaUrls(mediaIds: string[]): Promise<string[]> {
+  const urls: string[] = [];
+  for (const mediaId of mediaIds) {
+    try {
+      const downloadUrl = await metaProvider.getMediaUrl(mediaId);
+      const buffer = await metaProvider.downloadMedia(downloadUrl);
+      const fileName = `dni/${Date.now()}-${mediaId}.jpg`;
+      const { error } = await supabaseAdmin.storage
+        .from('documentos')
+        .upload(fileName, buffer, { contentType: 'image/jpeg' });
+      if (error) {
+        console.error('Failed to upload DNI image:', error);
+        continue;
+      }
+      const { data: urlData } = supabaseAdmin.storage.from('documentos').getPublicUrl(fileName);
+      urls.push(urlData.publicUrl);
+    } catch (err) {
+      console.error('Failed to resolve media URL:', err);
+    }
+  }
+  return urls;
+}
+
 export async function handleIncomingMessage(
   from: string,
   message: string,
   merchantId: string = '',
-  conversationId: string = ''
+  conversationId: string = '',
+  mediaIds: string[] = []
 ): Promise<void> {
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
@@ -203,7 +227,21 @@ export async function handleIncomingMessage(
     const ctx = (rawCtx ?? {}) as Record<string, unknown>;
 
     if (ctx.pasador_flow) {
-      const { respuesta, estado } = await manejarSolicitud(from, trimmed, ctx);
+      let ctxToProcess = ctx;
+      if ((ctx.pasador_flow as any).step === 'ubicacion' && trimmed.startsWith('LOCATION:')) {
+        const [latStr, lngStr] = trimmed.replace('LOCATION:', '').split(',');
+        ctxToProcess = {
+          ...ctx,
+          pasador_flow: {
+            ...(ctx.pasador_flow as any),
+            data: {
+              ...(ctx.pasador_flow as any).data,
+              ubicacion: { lat: parseFloat(latStr), lng: parseFloat(lngStr) },
+            },
+          },
+        };
+      }
+      const { respuesta, estado } = await manejarSolicitud(from, trimmed, ctxToProcess);
       const updatedCtx = estado.step === 'inicio'
         ? { ...ctx, pasador_flow: null }
         : { ...ctx, pasador_flow: estado };
@@ -212,21 +250,9 @@ export async function handleIncomingMessage(
       return;
     }
 
-    // Handle location messages for pasador flow
-    if (ctx.pasador_flow?.step === 'ubicacion' && trimmed.startsWith('LOCATION:')) {
-        const [lat, lng] = trimmed.replace('LOCATION:', '').split(',');
-        const updatedFlow = {
-            ...ctx.pasador_flow,
-            data: { ...ctx.pasador_flow.data, ubicacion: { lat: parseFloat(lat), lng: parseFloat(lng) } }
-        };
-        const { respuesta } = await manejarSolicitud(from, 'trigger_next', updatedFlow); // Trigger next step
-        await setConversationContext(conversationId, { ...ctx, pasador_flow: updatedFlow } as unknown as Json).catch(() => {});
-        await metaProvider.sendMessage(from, respuesta).catch(() => {});
-        return;
-    }
-
     if (ctx.postulacion_paso) {
-      const respuesta = await manejarPostulacion(from, ctx.postulacion_paso as string, trimmed);
+      const imagenes = mediaIds.length > 0 ? await resolveMediaUrls(mediaIds) : [];
+      const respuesta = await manejarPostulacion(from, ctx.postulacion_paso as string, trimmed, imagenes);
       const [msg, nextPaso] = respuesta.split('|||');
       const updatedCtx = nextPaso
         ? { ...ctx, postulacion_paso: nextPaso }

@@ -42,14 +42,15 @@ export async function registrarComision(
   fecha: string,
   total: number,
   monto: number,
-  link: string
+  link: string,
+  totalViajesCount: number = 0
 ): Promise<void> {
   await supabaseAdmin
     .from('comisiones')
     .insert({
       pasador_id: pasadorId,
       fecha,
-      total_viajes: 0,
+      total_viajes: totalViajesCount,
       monto_comision: monto,
       link_pago: link
     });

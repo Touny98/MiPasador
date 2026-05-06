@@ -72,6 +72,23 @@ export async function POST(request: NextRequest) {
                 } catch (err) {
                   console.error('Failed to handle incoming message:', err);
                 }
+              } else if (message.type === 'image' && message.image?.id) {
+                try {
+                  await handleIncomingMessage(message.from, '', merchantId ?? '', conversationId ?? '', [message.image.id]);
+                } catch (err) {
+                  console.error('Failed to handle image message:', err);
+                }
+              } else if (message.type === 'location' && message.location) {
+                try {
+                  await handleIncomingMessage(
+                    message.from,
+                    `LOCATION:${message.location.latitude},${message.location.longitude}`,
+                    merchantId ?? '',
+                    conversationId ?? ''
+                  );
+                } catch (err) {
+                  console.error('Failed to handle location message:', err);
+                }
               } else if (message.interactive) {
                 let replyId: string | undefined;
                 if (message.interactive.button_reply) {

@@ -96,6 +96,26 @@ export class MetaCloudProvider {
     });
   }
 
+  async getMediaUrl(mediaId: string): Promise<string> {
+    const url = `${this.baseUrl}/${mediaId}`;
+    const response = await this.fetchWithRetry(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+    });
+    const data = await response.json() as { url: string };
+    return data.url;
+  }
+
+  async downloadMedia(mediaUrl: string): Promise<Buffer> {
+    const response = await fetch(mediaUrl, {
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to download media: HTTP ${response.status}`);
+    }
+    return Buffer.from(await response.arrayBuffer());
+  }
+
   private async fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
     let lastError: Error = new Error('Unknown error');
 

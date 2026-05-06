@@ -182,8 +182,21 @@ export async function manejarSolicitud(
     state.data.viajeId = viaje.id;
     state.step = 'confirmacion';
 
+    // Notify the assigned pasador
+    const { data: pasadorInfo } = await supabaseAdmin
+      .from('pasadores')
+      .select('wa_user_id')
+      .eq('id', state.data.pasadorId)
+      .single();
+    if (pasadorInfo?.wa_user_id) {
+      await metaProvider.sendMessage(
+        pasadorInfo.wa_user_id,
+        `🔔 Nuevo viaje asignado!\nRuta: ${state.data.ruta}\nPeso: ${state.data.peso} kg\nPrecio: $${precio.toFixed(2)} ARS\nRespondé *ACEPTO para aceptar o *RECHAZO para rechazar.`
+      ).catch(() => {});
+    }
+
     return {
-      respuesta: `✅ ¡Viaje creado! Pasador asignado: ${pasador.nombre_completo || 'Sin nombre'}. Precio: $${precio.toFixed(2)} ARS.\nEl pasador será notificado.`,
+      respuesta: `✅ ¡Viaje creado! Pasador asignado: ${pasador.nombre_completo || 'Sin nombre'}. Precio: $${precio.toFixed(2)} ARS. Te avisaremos cuando el pasador acepte.`,
       estado: state
     };
   }
@@ -362,23 +375,15 @@ export async function manejarComando(waUserId: string, comando: string): Promise
 
       await supabaseAdmin.from('pasadores').update({ estado: 'ocupado' }).eq('id', pasador.id);
 
-      // Notificar al usuario (we would send a WhatsApp message, but we just return the response for the pasador)
-      // The integrator will handle sending the message to the user.
-      // We'll return a message that the integrator can use to notify the user?
-      // Actually, this function is called from the webhook when the pasador sends a command.
-      // We need to return a response for the pasador, and the integrator will handle notifying the user separately.
-      // We'll return a message for the pasador, and the integrator will also send a message to the user.
-      // We'll return a special string that indicates we want to notify the user?
-      // Alternatively, we can have the function return an object with both responses.
+      // Notify the user that their pasador is on the way
+      if (viajes.usuario_wa_id) {
+        await metaProvider.sendMessage(
+          viajes.usuario_wa_id,
+          '🚚 ¡Tu pasador aceptó el viaje y está en camino!'
+        ).catch(() => {});
+      }
 
-      // Given the prompt, it says: manejarComando(...) returns Promise<string>
-      // And the example: "Pasador aceptó, en camino." is the response for the pasador?
-      // Actually, the prompt says: "Responder 'Pasador aceptó, en camino.'" meaning the response to the pasador.
-
-      // So we'll return that string for the pasador, and the integrator will also send a message to the user.
-      // We'll leave the notification to the integrator.
-
-      return '✅ Pasador aceptó, en camino. Notificando al usuario...';
+      return '✅ Viaje aceptado. El usuario fue notificado.';
     }
 
     case 'RECHAZO': {
@@ -508,7 +513,7 @@ export async function manejarComando(waUserId: string, comando: string): Promise
         const linkPago = await generarLinkPago(pasador.id, montoComision);
 
         // Register the commission using our mercadopago module
-        await registrarComisionMercadoPago(pasador.id, new Date().toISOString(), totalPrecio, montoComision, linkPago);
+        await registrarComisionMercadoPago(pasador.id, new Date().toISOString(), totalPrecio, montoComision, linkPago, viajesCompletados.length);
 
         // Return resumen and link de pago
         return `

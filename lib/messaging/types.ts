@@ -33,6 +33,18 @@ export interface WhatsAppMessage {
   text?: {
     body: string;
   };
+  image?: {
+    id: string;
+    mime_type: string;
+    sha256: string;
+    caption?: string;
+  };
+  location?: {
+    latitude: number;
+    longitude: number;
+    name?: string;
+    address?: string;
+  };
   interactive?: {
     type: 'button_reply' | 'list_reply';
     button_reply?: { id: string; title: string; };
