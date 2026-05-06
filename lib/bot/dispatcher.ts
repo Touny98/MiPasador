@@ -48,20 +48,21 @@ async function resolveMediaUrls(mediaIds: string[]): Promise<string[]> {
   const urls: string[] = [];
   for (const mediaId of mediaIds) {
     try {
-      const downloadUrl = await metaProvider.getMediaUrl(mediaId);
+      const { url: downloadUrl, mimeType } = await metaProvider.getMediaInfo(mediaId);
       const buffer = await metaProvider.downloadMedia(downloadUrl);
-      const fileName = `dni/${Date.now()}-${mediaId}.jpg`;
+      const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+      const fileName = `dni/${Date.now()}-${mediaId}.${ext}`;
       const { error } = await supabaseAdmin.storage
         .from('documentos')
-        .upload(fileName, buffer, { contentType: 'image/jpeg' });
+        .upload(fileName, buffer, { contentType: mimeType, upsert: true });
       if (error) {
-        console.error('Failed to upload DNI image:', error);
+        console.error('[resolveMediaUrls] Storage upload failed:', error.message, error);
         continue;
       }
       const { data: urlData } = supabaseAdmin.storage.from('documentos').getPublicUrl(fileName);
       urls.push(urlData.publicUrl);
     } catch (err) {
-      console.error('Failed to resolve media URL:', err);
+      console.error('[resolveMediaUrls] Failed to process media:', mediaId, err);
     }
   }
   return urls;

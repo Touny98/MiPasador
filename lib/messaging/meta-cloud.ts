@@ -96,14 +96,19 @@ export class MetaCloudProvider {
     });
   }
 
-  async getMediaUrl(mediaId: string): Promise<string> {
+  async getMediaInfo(mediaId: string): Promise<{ url: string; mimeType: string }> {
     const url = `${this.baseUrl}/${mediaId}`;
     const response = await this.fetchWithRetry(url, {
       method: 'GET',
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
-    const data = await response.json() as { url: string };
-    return data.url;
+    const data = await response.json() as { url: string; mime_type?: string };
+    return { url: data.url, mimeType: data.mime_type || 'image/jpeg' };
+  }
+
+  async getMediaUrl(mediaId: string): Promise<string> {
+    const { url } = await this.getMediaInfo(mediaId);
+    return url;
   }
 
   async downloadMedia(mediaUrl: string): Promise<Buffer> {
