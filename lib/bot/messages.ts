@@ -4,8 +4,9 @@ export const truncate = (str: string, max: number) =>
 export const parseReserveButtonId = (id: string) => {
   if (id.startsWith('sales_reserve_')) return { type: 'reserve', productId: id.replace('sales_reserve_', '') };
   if (id.startsWith('followup_reserve_')) return { type: 'reserve', productId: id.replace('followup_reserve_', '') };
+  if (id.startsWith('sales_cat_')) return { type: 'category', categoryName: id.replace('sales_cat_', '') };
   if (id === 'sales_cheaper') return { type: 'cheaper' };
-  if (id === 'sales_more') return { type: 'more' };
+  if (id === 'sales_more') return { type: 'more'};
   if (id === 'sales_no_thanks' || id === 'followup_no_thanks') return { type: 'no_thanks' };
   if (id.startsWith('reserve_')) return { type: 'reserve', productId: id.replace('reserve_', '') };
   return { type: 'unknown' };

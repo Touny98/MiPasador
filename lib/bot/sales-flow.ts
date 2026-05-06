@@ -5,13 +5,14 @@ import { createReservation } from '@/lib/services/reservationService';
 import { MSG, truncate, isConfirmation, isNegation, isDoubtCheaper, isDoubtBetter, parseReserveButtonId } from '@/lib/bot/messages';
 
 export interface SalesFlowState {
-  step: 'opciones' | 'decision';
+  step: 'eligiendo_categoria' | 'opciones' | 'decision';
   lastQuery: string;
   shownProductIds: string[];
   topProductId: string;
   topProductName: string;
   topProductPrice: number;
   followUpScheduled: boolean;
+  selectedCategory?: string;
 }
 
 export function generateReservationCode(): string {
@@ -69,6 +70,101 @@ async function showProductOptions(from: string, products: any[], metaProvider: M
       ]
     );
   }
+}
+
+export async function showCategoryList(from: string, merchantId: string, metaProvider: MetaCloudProvider) {
+  const baseQuery = supabaseAdmin
+    .from('products')
+    .select('category')
+    .not('category', 'is', null)
+    .eq('is_active', true)
+    .order('category');
+
+  const { data: categories, error } = merchantId
+    ? await baseQuery.eq('merchant_id', merchantId)
+    : await baseQuery;
+
+  if (error || !categories) {
+    console.error('Error fetching categories:', error);
+    await metaProvider.sendMessage(from, 'No pudimos cargar las categorías. Por favor, escribí el nombre del producto que buscás 🔍');
+    return;
+  }
+
+  const uniqueCategories = Array.from(new Set(categories.map(c => c.category)));
+
+  if (uniqueCategories.length === 0) {
+    await metaProvider.sendMessage(from, 'No hay categorías disponibles. Por favor, escribí el nombre del producto que buscás 🔍');
+    return;
+  }
+
+  if (uniqueCategories.length <= 3) {
+    await metaProvider.sendInteractiveButtons(
+      from,
+      'Elegí una categoría 👇',
+      uniqueCategories.map(cat => ({ id: `sales_cat_${cat}`, title: cat })),
+      MSG.SEARCH_HEADER(uniqueCategories.length)
+    );
+  } else {
+    await metaProvider.sendList(
+      from,
+      'Elegí una categoría para empezar 👇',
+      "Ver categorías",
+      [
+        {
+          title: "Categorías disponibles",
+          rows: uniqueCategories.map(cat => ({ id: `sales_cat_${cat}`, title: cat })),
+        },
+      ],
+      MSG.SEARCH_HEADER(uniqueCategories.length)
+    );
+  }
+}
+
+async function showCategoryProducts(from: string, category: string, merchantId: string, metaProvider: MetaCloudProvider) {
+  const baseQuery = supabaseAdmin
+    .from('products')
+    .select('*')
+    .eq('category', category)
+    .eq('is_active', true)
+    .order('total_reservations', { ascending: false })
+    .limit(10);
+
+  const { data: products, error } = merchantId
+    ? await baseQuery.eq('merchant_id', merchantId)
+    : await baseQuery;
+
+  if (error || !products || products.length === 0) {
+    await metaProvider.sendMessage(from, `No encontré productos en la categoría ${category}. Intentá buscar por nombre 🔍`);
+    return;
+  }
+
+  await metaProvider.sendList(
+    from,
+    `Productos más populares de ${category} 👇`,
+    "Ver productos",
+    [
+      {
+        title: '🔥 MÁS ELEGIDOS',
+        rows: products.map(p => ({
+          id: `sales_reserve_${p.id}`,
+          title: truncate(p.name, 24),
+          description: `$${p.price}`,
+        })),
+      },
+    ],
+    MSG.SEARCH_HEADER(products.length)
+  );
+
+  const top = products[0];
+  await metaProvider.sendInteractiveButtons(
+    from,
+    '¿Te interesa alguno de estos? 👇',
+    [
+      { id: `sales_reserve_${top.id}`, title: MSG.BTN_RESERVE },
+      { id: 'sales_cheaper', title: MSG.BTN_CHEAPER },
+      { id: 'sales_no_thanks', title: MSG.BTN_NO_THANKS },
+    ]
+  );
 }
 
 async function scheduleFollowUp(conversationId: string, productId: string, productName: string) {
@@ -211,7 +307,22 @@ export async function handleSalesInteractive(
   salesFlow: SalesFlowState | null,
   metaProvider: MetaCloudProvider
 ): Promise<SalesFlowState | null> {
-  const { type, productId } = parseReserveButtonId(replyId);
+  const { type, productId, categoryName } = parseReserveButtonId(replyId);
+
+  if (type === 'category') {
+    const catName = categoryName || '';
+    await showCategoryProducts(from, catName, merchantId, metaProvider);
+    return {
+      step: 'opciones',
+      selectedCategory: catName,
+      lastQuery: catName,
+      shownProductIds: [],
+      topProductId: '',
+      topProductName: '',
+      topProductPrice: 0,
+      followUpScheduled: false,
+    };
+  }
 
   if (type === 'reserve') {
     if (!productId) return salesFlow;

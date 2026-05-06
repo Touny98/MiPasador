@@ -4,7 +4,8 @@ import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { MSG, parseReserveButtonId, isGreeting, isMenuRequest } from './messages';
 import { detectarIntencionPasador, manejarSolicitud, manejarComando, manejarPostulacion } from '@/lib/pasador/flows';
 import { getOrCreateConversationContext, setConversationContext } from '@/lib/services/pasadorService';
-import { handleSalesMessage, handleSalesInteractive, SalesFlowState } from './sales-flow';
+import { handleSalesMessage, handleSalesInteractive, SalesFlowState, showCategoryList } from './sales-flow';
+import { manejarMerchantPostulacion } from '@/lib/bot/merchant-flow';
 import type { Json } from '@/lib/database.types';
 
 const metaProvider = new MetaCloudProvider(
@@ -13,14 +14,22 @@ const metaProvider = new MetaCloudProvider(
 );
 
 async function sendWelcome(from: string): Promise<void> {
-  await metaProvider.sendInteractiveButtons(
+  await metaProvider.sendList(
     from,
     MSG.WELCOME(),
+    "Ver opciones",
     [
-      { id: 'sales_search', title: 'Buscar producto 🔍' },
-      { id: 'pasador_search', title: 'Buscar pasador 🚶' },
-      { id: 'postular_search', title: 'Quiero ser pasador 💼' },
-    ]
+      {
+        title: "Opciones principales",
+        rows: [
+          { id: 'sales_search', title: '🔍 Buscar producto' },
+          { id: 'pasador_search', title: '🚶 Buscar pasador' },
+          { id: 'postular_search', title: '💼 Quiero ser pasador' },
+          { id: 'publicar_negocio', title: '🏪 Publicar mi negocio' },
+        ],
+      },
+    ],
+    MSG.SEARCH_HEADER(4) // Repurposing this for the list header
   ).catch(() => {});
 }
 
@@ -77,9 +86,11 @@ export async function handleInteractiveMessage(
 
   switch (replyId) {
     case 'sales_search':
-    case 'menu_search':
-      await metaProvider.sendMessage(from, 'Escribí el nombre del producto que buscás 🔍').catch(() => {});
+    case 'menu_search': {
+      await showCategoryList(from, merchantId, metaProvider);
+      await setConversationContext(conversationId, { ...ctx, sales_flow: { step: 'eligiendo_categoria' } } as unknown as Json);
       break;
+    }
     case 'pasador_search': {
       const { respuesta, estado } = await manejarSolicitud(from, '', ctx);
       await setConversationContext(conversationId, { ...ctx, pasador_flow: estado } as unknown as Json).catch(() => {});
@@ -90,6 +101,31 @@ export async function handleInteractiveMessage(
       const respuesta = await manejarPostulacion(from, 'inicio', '');
       const [msg, nextPaso] = respuesta.split('|||');
       await setConversationContext(conversationId, { ...ctx, postulacion_paso: nextPaso ?? 'nombre' } as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, msg).catch(() => {});
+      break;
+    }
+    case 'peso_chico': {
+      const { respuesta, estado } = await manejarSolicitud(from, '5', ctx);
+      await setConversationContext(conversationId, { ...ctx, pasador_flow: estado } as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, respuesta).catch(() => {});
+      break;
+    }
+    case 'peso_medio': {
+      const { respuesta, estado } = await manejarSolicitud(from, '15', ctx);
+      await setConversationContext(conversationId, { ...ctx, pasador_flow: estado } as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, respuesta).catch(() => {});
+      break;
+    }
+    case 'peso_grande': {
+      const { respuesta, estado } = await manejarSolicitud(from, '25', ctx);
+      await setConversationContext(conversationId, { ...ctx, pasador_flow: estado } as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, respuesta).catch(() => {});
+      break;
+    }
+    case 'publicar_negocio': {
+      const respuesta = await manejarMerchantPostulacion(from, 'inicio', '');
+      const [msg, nextPaso] = respuesta.split('|||');
+      await setConversationContext(conversationId, { ...ctx, comercio_paso: nextPaso ?? 'nombre' } as unknown as Json).catch(() => {});
       await metaProvider.sendMessage(from, msg).catch(() => {});
       break;
     }
@@ -137,6 +173,22 @@ export async function handleIncomingMessage(
         };
       }
       const { respuesta, estado } = await manejarSolicitud(from, trimmed, ctxToProcess);
+
+      if (estado.step === 'peso') {
+        const updatedCtxPeso = { ...ctx, pasador_flow: estado };
+        await setConversationContext(conversationId, updatedCtxPeso as unknown as Json).catch(() => {});
+        await metaProvider.sendInteractiveButtons(
+          from,
+          '⚖️ ¿Cuánto pesa el bulto?',
+          [
+            { id: 'peso_chico', title: 'Menos de 5 kg' },
+            { id: 'peso_medio', title: '5 a 20 kg' },
+            { id: 'peso_grande', title: 'Más de 20 kg' },
+          ]
+        ).catch(() => {});
+        return;
+      }
+
       const updatedCtx = estado.step === 'inicio'
         ? { ...ctx, pasador_flow: null }
         : { ...ctx, pasador_flow: estado };
@@ -152,6 +204,18 @@ export async function handleIncomingMessage(
       const updatedCtx = nextPaso
         ? { ...ctx, postulacion_paso: nextPaso }
         : { ...ctx, postulacion_paso: null };
+      await setConversationContext(conversationId, updatedCtx as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, msg).catch(() => {});
+      return;
+    }
+
+    if (ctx.comercio_paso) {
+      const imagenes = mediaIds.length > 0 ? await resolveMediaUrls(mediaIds) : [];
+      const respuesta = await manejarMerchantPostulacion(from, ctx.comercio_paso as string, trimmed, imagenes);
+      const [msg, nextPaso] = respuesta.split('|||');
+      const updatedCtx = nextPaso
+        ? { ...ctx, comercio_paso: nextPaso }
+        : { ...ctx, comercio_paso: null };
       await setConversationContext(conversationId, updatedCtx as unknown as Json).catch(() => {});
       await metaProvider.sendMessage(from, msg).catch(() => {});
       return;

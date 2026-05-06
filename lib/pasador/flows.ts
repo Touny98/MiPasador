@@ -79,7 +79,7 @@ export async function manejarSolicitud(
     state.step = 'ubicacion';
     state.data = {}; // reset data
     return {
-      respuesta: '📍 Por favor, compartí tu ubicación actual (puedes usar el botón de ubicación de WhatsApp o escribir tu dirección).',
+      respuesta: '📍 ¿Dónde estás?\nCompartí tu ubicación por WhatsApp.',
       estado: state
     };
   }
@@ -91,24 +91,25 @@ export async function manejarSolicitud(
     if (!state.data.ubicacion) {
       // We don't have location yet, ask again
       return {
-        respuesta: '📍 Aún no recibí tu ubicación. Por favor, compartí tu ubicación actual (usando el botón de ubicación de WhatsApp) o escribí tu dirección actual.',
+        respuesta: '📍 No recibí tu ubicación. Tocá el clip 📎 y elegí Ubicación.',
         estado: state
       };
     }
     // We have location, now ask for route
     state.step = 'ruta';
     return {
-      respuesta: '🛣️ Ahora, indicá la ruta (por ejemplo: "Centro - Aeropuerto" o "Casa - Trabajo"):',
+      respuesta: '🏠 ¿Cuál es tu dirección actual?\nEscribila completa (calle, número, ciudad).',
       estado: state
     };
   }
+
 
   // Step: ruta -> we expect texto to be the route
   if (state.step === 'ruta') {
     state.data.ruta = texto.trim();
     state.step = 'peso';
     return {
-      respuesta: '⚖️ ¿Cuál es el peso del bulto en kilogramos? (por ejemplo: 5.5)',
+      respuesta: '⚖️ ¿Cuánto pesa el bulto?',
       estado: state
     };
   }
@@ -125,7 +126,7 @@ export async function manejarSolicitud(
     state.data.peso = peso;
     state.step = 'descripcion';
     return {
-      respuesta: '📝 ¿Qué contiene el bulto? (descripción breve)',
+      respuesta: '📝 ¿Qué enviás? Describilo brevemente.',
       estado: state
     };
   }
@@ -147,7 +148,7 @@ export async function manejarSolicitud(
     if (!pasador) {
       state.step = 'inicio';
       return {
-        respuesta: '😔 No hay pasadores disponibles ahora. Intentá más tarde.',
+        respuesta: '😔 Sin pasadores disponibles ahora.\nIntentá en un rato.',
         estado: state
       };
     }
@@ -196,7 +197,7 @@ export async function manejarSolicitud(
     }
 
     return {
-      respuesta: `✅ ¡Viaje creado! Pasador asignado: ${pasador.nombre_completo || 'Sin nombre'}. Precio: $${precio.toFixed(2)} ARS. Te avisaremos cuando el pasador acepte.`,
+      respuesta: `✅ ¡Listo! Pasador asignado: ${pasador.nombre_completo || 'Sin nombre'}.\n💰 Precio: $${precio.toFixed(2)} ARS\nTe avisamos cuando acepte.`,
       estado: state
     };
   }
