@@ -132,3 +132,7 @@ export function ComisionesContent() {
     </div>
   );
 }
+
+export default function ComisionesPage() {
+  return <ComisionesContent />;
+}

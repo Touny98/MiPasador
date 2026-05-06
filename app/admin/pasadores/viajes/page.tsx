@@ -183,3 +183,7 @@ export function ViajesContent() {
     </div>
   );
 }
+
+export default function ViajesPage() {
+  return <ViajesContent />;
+}

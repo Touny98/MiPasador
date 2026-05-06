@@ -302,3 +302,7 @@ export function TarifasContent() {
     </div>
   );
 }
+
+export default function TarifasPage() {
+  return <TarifasContent />;
+}
