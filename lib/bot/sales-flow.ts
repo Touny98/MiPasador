@@ -202,8 +202,7 @@ export async function handleSalesInteractive(
   if (type === 'reserve') {
     if (!productId) return salesFlow;
 
-    const products = await searchProducts(salesFlow?.topProductName || 'placeholder', merchantId);
-    const product = products.find(p => p.id === productId) || products[0];
+    const { data: product } = await supabaseAdmin.from('products').select('*').eq('id', productId).single();
     const productName = product?.name || 'Producto';
 
     const code = generateReservationCode();

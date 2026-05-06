@@ -1,4 +1,4 @@
-import { MetaCloudProvider, ListSection } from '../messaging/meta-cloud';
+import { MetaCloudProvider } from '../messaging/meta-cloud';
 import { searchProducts } from '@/lib/search/products';
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { MSG, parseReserveButtonId, isGreeting, isMenuRequest } from './messages';
@@ -167,8 +167,11 @@ export async function handleIncomingMessage(
 
     const salesFlow = (ctx.sales_flow ?? null) as SalesFlowState | null;
     const newSalesFlow = await handleSalesMessage(from, trimmed, merchantId, conversationId, salesFlow, metaProvider);
-    if (newSalesFlow !== null || (ctx.sales_flow === null && trimmed !== '')) {
+    if (newSalesFlow !== null) {
       await setConversationContext(conversationId, { ...ctx, sales_flow: newSalesFlow } as unknown as Json).catch(() => {});
+    } else if (ctx.sales_flow !== null) {
+      // If newSalesFlow is null and there was a flow, we must explicitly clear it in the DB
+      await setConversationContext(conversationId, { ...ctx, sales_flow: null } as unknown as Json).catch(() => {});
     }
 
     return;
