@@ -11,11 +11,11 @@ export default function PasadoresLayout({ children }: { children: React.ReactNod
   const [activeTab, setActiveTab] = useState('lista');
 
   const tabs = [
-    { id: 'lista', label: 'Lista de Pasadores', component: <PasadoresContent /> },
-    { id: 'viajes', label: 'Viajes', component: <ViajesContent /> },
-    { id: 'comisiones', label: 'Comisiones', component: <ComisionesContent /> },
-    { id: 'postulaciones', label: 'Postulaciones', component: <PostulacionesContent /> },
-    { id: 'tarifas', label: 'Tarifas', component: <TarifasContent /> },
+    { id: 'lista', label: 'Lista de Pasadores', component: PasadoresContent },
+    { id: 'viajes', label: 'Viajes', component: ViajesContent },
+    { id: 'comisiones', label: 'Comisiones', component: ComisionesContent },
+    { id: 'postulaciones', label: 'Postulaciones', component: PostulacionesContent },
+    { id: 'tarifas', label: 'Tarifas', component: TarifasContent },
   ];
 
   return (
@@ -39,7 +39,10 @@ export default function PasadoresLayout({ children }: { children: React.ReactNod
       </div>
 
       <div>
-        {tabs.find(t => t.id === activeTab)?.component}
+        {(() => {
+          const ActiveComponent = tabs.find(t => t.id === activeTab)?.component;
+          return ActiveComponent ? <ActiveComponent /> : null;
+        })()}
       </div>
     </div>
   );
