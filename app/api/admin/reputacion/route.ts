@@ -13,11 +13,11 @@ export async function GET() {
 
     const distribution = {
       1: 0, 2: 0, 3: 0, 4: 0, 5: 0
-    } as Record<number, number>;
+    } as Record<string, number>;
 
     starDistribution?.forEach((v: any) => {
       if (v.estrellas >= 1 && v.estrellas <= 5) {
-        distribution[v.estrellas]++;
+        distribution[v.estrellas.toString()]++;
       }
     });
 
