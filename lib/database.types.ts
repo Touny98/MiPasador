@@ -463,6 +463,48 @@ export type Database = {
         }
         Relationships: []
       }
+      postulaciones_comercio: {
+        Row: {
+          categoria_productos: string | null
+          correcciones: string | null
+          created_at: string | null
+          direccion: string | null
+          dni: string | null
+          estado: string | null
+          foto_local_url: string | null
+          id: string
+          nombre_completo: string | null
+          nombre_negocio: string | null
+          wa_user_id: string
+        }
+        Insert: {
+          categoria_productos?: string | null
+          correcciones?: string | null
+          created_at?: string | null
+          direccion?: string | null
+          dni?: string | null
+          estado?: string | null
+          foto_local_url?: string | null
+          id?: string
+          nombre_completo?: string | null
+          nombre_negocio?: string | null
+          wa_user_id: string
+        }
+        Update: {
+          categoria_productos?: string | null
+          correcciones?: string | null
+          created_at?: string | null
+          direccion?: string | null
+          dni?: string | null
+          estado?: string | null
+          foto_local_url?: string | null
+          id?: string
+          nombre_completo?: string | null
+          nombre_negocio?: string | null
+          wa_user_id?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category: string | null

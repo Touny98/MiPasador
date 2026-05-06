@@ -1,7 +1,5 @@
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 
-const db = supabaseAdmin as any;
-
 export async function manejarMerchantPostulacion(
   waUserId: string,
   paso: string,
@@ -14,7 +12,7 @@ export async function manejarMerchantPostulacion(
 
   switch (currentStep) {
     case 'inicio': {
-      const { data, error } = await db
+      const { data, error } = await supabaseAdmin
         .from('postulaciones_comercio')
         .insert({ wa_user_id: waUserId, estado: 'pendiente' })
         .select('id')
@@ -30,7 +28,7 @@ export async function manejarMerchantPostulacion(
 
     case 'nombre': {
       if (!postulacionId) return '❌ Error: sesión no encontrada. Escribí "Publicar mi negocio" para empezar.';
-      const { error } = await db
+      const { error } = await supabaseAdmin
         .from('postulaciones_comercio')
         .update({ nombre_completo: texto.trim() })
         .eq('id', postulacionId);
@@ -41,7 +39,7 @@ export async function manejarMerchantPostulacion(
 
     case 'nombre_negocio': {
       if (!postulacionId) return '❌ Error: sesión no encontrada. Escribí "Publicar mi negocio" para empezar.';
-      const { error } = await db
+      const { error } = await supabaseAdmin
         .from('postulaciones_comercio')
         .update({ nombre_negocio: texto.trim() })
         .eq('id', postulacionId);
@@ -52,7 +50,7 @@ export async function manejarMerchantPostulacion(
 
     case 'dni': {
       if (!postulacionId) return '❌ Error: sesión no encontrada. Escribí "Publicar mi negocio" para empezar.';
-      const { error } = await db
+      const { error } = await supabaseAdmin
         .from('postulaciones_comercio')
         .update({ dni: texto.trim() })
         .eq('id', postulacionId);
@@ -63,7 +61,7 @@ export async function manejarMerchantPostulacion(
 
     case 'categoria': {
       if (!postulacionId) return '❌ Error: sesión no encontrada. Escribí "Publicar mi negocio" para empezar.';
-      const { error } = await db
+      const { error } = await supabaseAdmin
         .from('postulaciones_comercio')
         .update({ categoria_productos: texto.trim() })
         .eq('id', postulacionId);
@@ -74,7 +72,7 @@ export async function manejarMerchantPostulacion(
 
     case 'direccion': {
       if (!postulacionId) return '❌ Error: sesión no encontrada. Escribí "Publicar mi negocio" para empezar.';
-      const { error } = await db
+      const { error } = await supabaseAdmin
         .from('postulaciones_comercio')
         .update({ direccion: texto.trim() })
         .eq('id', postulacionId);
@@ -89,7 +87,7 @@ export async function manejarMerchantPostulacion(
         return `⚠️ No recibí la foto. Por favor, enviá una foto del frente del local.|||foto_local:${postulacionId}`;
       }
 
-      const { error } = await db
+      const { error } = await supabaseAdmin
         .from('postulaciones_comercio')
         .update({ foto_local_url: imagenes[0] })
         .eq('id', postulacionId);

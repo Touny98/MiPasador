@@ -44,3 +44,51 @@ export async function deleteMerchant(id: string) {
     throw error;
   }
 }
+
+export async function acceptPostulacionComercio(id: string) {
+  const { data: post, error: fetchError } = await supabaseAdmin
+    .from('postulaciones_comercio')
+    .select('nombre_negocio, direccion, wa_user_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !post) {
+    console.error('Error fetching postulacion:', fetchError);
+    throw fetchError;
+  }
+
+  const { error: merchantError } = await supabaseAdmin
+    .from('merchants')
+    .insert({
+      name: post.nombre_negocio || 'Sin nombre',
+      address: post.direccion,
+      phone_number: post.wa_user_id,
+    });
+
+  if (merchantError) {
+    console.error('Error creating merchant:', merchantError);
+    throw merchantError;
+  }
+
+  const { error: updateError } = await supabaseAdmin
+    .from('postulaciones_comercio')
+    .update({ estado: 'aceptada' })
+    .eq('id', id);
+
+  if (updateError) {
+    console.error('Error updating postulacion:', updateError);
+    throw updateError;
+  }
+}
+
+export async function denyPostulacionComercio(id: string) {
+  const { error } = await supabaseAdmin
+    .from('postulaciones_comercio')
+    .update({ estado: 'denegada' })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error denying postulacion:', error);
+    throw error;
+  }
+}
