@@ -13,7 +13,15 @@ const metaProvider = new MetaCloudProvider(
 );
 
 async function sendWelcome(from: string): Promise<void> {
-  await metaProvider.sendMessage(from, MSG.WELCOME()).catch(() => {});
+  await metaProvider.sendInteractiveButtons(
+    from,
+    MSG.WELCOME(),
+    [
+      { id: 'sales_search', title: 'Buscar producto 🔍' },
+      { id: 'pasador_search', title: 'Buscar pasador 🚶' },
+      { id: 'postular_search', title: 'Quiero ser pasador 💼' },
+    ]
+  ).catch(() => {});
 }
 
 async function sendMenu(from: string): Promise<void> {
@@ -68,9 +76,23 @@ export async function handleInteractiveMessage(
   }
 
   switch (replyId) {
+    case 'sales_search':
     case 'menu_search':
       await metaProvider.sendMessage(from, 'Escribí el nombre del producto que buscás 🔍').catch(() => {});
       break;
+    case 'pasador_search': {
+      const { respuesta, estado } = await manejarSolicitud(from, '', ctx);
+      await setConversationContext(conversationId, { ...ctx, pasador_flow: estado } as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, respuesta).catch(() => {});
+      break;
+    }
+    case 'postular_search': {
+      const respuesta = await manejarPostulacion(from, 'inicio', '');
+      const [msg, nextPaso] = respuesta.split('|||');
+      await setConversationContext(conversationId, { ...ctx, postulacion_paso: nextPaso ?? 'nombre' } as unknown as Json).catch(() => {});
+      await metaProvider.sendMessage(from, msg).catch(() => {});
+      break;
+    }
     case 'menu_talk':
       await metaProvider.sendMessage(from, 'Un momento 🙏 Alguien te va a atender pronto.').catch(() => {});
       break;

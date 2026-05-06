@@ -110,7 +110,14 @@ export async function handleSalesMessage(
     if (analyticsErr) console.error('Analytics error:', analyticsErr);
 
     if (products.length === 0) {
-      await metaProvider.sendMessage(from, MSG.NO_RESULTS);
+      await metaProvider.sendInteractiveButtons(
+        from,
+        MSG.NO_RESULTS,
+        [
+          { id: 'menu_search', title: MSG.BTN_SEARCH },
+          { id: 'menu_talk', title: MSG.BTN_TALK },
+        ]
+      );
       return null;
     }
 
@@ -171,7 +178,14 @@ export async function handleSalesMessage(
 
     const newProducts = await searchProducts(text, merchantId);
     if (newProducts.length === 0) {
-      await metaProvider.sendMessage(from, MSG.NO_RESULTS);
+      await metaProvider.sendInteractiveButtons(
+        from,
+        MSG.NO_RESULTS,
+        [
+          { id: 'menu_search', title: MSG.BTN_SEARCH },
+          { id: 'menu_talk', title: MSG.BTN_TALK },
+        ]
+      );
       return null;
     }
     await showProductOptions(from, newProducts, metaProvider);
