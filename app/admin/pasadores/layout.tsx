@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { PasadoresContent } from './_components/PasadoresContent';
-import { ViajesContent } from './viajes/page';
-import { ComisionesContent } from './comisiones/page';
-import { PostulacionesContent } from './postulaciones/page';
-import { TarifasContent } from './tarifas/page';
+import { ViajesContent } from './_components/ViajesContent';
+import { ComisionesContent } from './_components/ComisionesContent';
+import { PostulacionesContent } from './_components/PostulacionesContent';
+import { TarifasContent } from './_components/TarifasContent';
 
 export default function PasadoresLayout({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState('lista');
