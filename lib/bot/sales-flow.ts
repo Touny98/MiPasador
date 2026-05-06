@@ -129,13 +129,10 @@ export async function handleSalesMessage(
 
   if (salesFlow.step === 'opciones') {
     if (isConfirmation(trimmedText)) {
-      const topProduct = (await searchProducts(salesFlow.topProductName, merchantId))[0];
-      if (!topProduct) return null;
-
       const code = generateReservationCode();
       await createReservation({ conversationId, productId: salesFlow.topProductId, notes: code });
-      await metaProvider.sendMessage(from, MSG.RESERVE_CONFIRM(topProduct.name, code));
-      await scheduleFollowUp(conversationId, salesFlow.topProductId, topProduct.name);
+      await metaProvider.sendMessage(from, MSG.RESERVE_CONFIRM(salesFlow.topProductName, code));
+      await scheduleFollowUp(conversationId, salesFlow.topProductId, salesFlow.topProductName);
       return null;
     }
 

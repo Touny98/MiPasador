@@ -33,9 +33,10 @@ export const isDoubtBetter = (text: string) => {
 };
 
 export const isConfirmation = (text: string) => {
+  const trimmed = text.toLowerCase().trim();
+  if (isNegation(trimmed)) return false;
   const confirms = ['sí', 'si', 'dale', 'ok', 'bueno', 'quiero', 'reserva', 'reservar'];
   return confirms.some(c => {
-    const trimmed = text.toLowerCase().trim();
     if (c.length <= 2) return trimmed === c;
     return trimmed.includes(c);
   });
