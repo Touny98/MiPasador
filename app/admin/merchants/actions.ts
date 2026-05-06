@@ -1,6 +1,14 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
+import { MetaCloudProvider } from '@/lib/messaging/meta-cloud';
+
+function getMeta() {
+  return new MetaCloudProvider(
+    process.env.META_ACCESS_TOKEN!,
+    process.env.META_PHONE_NUMBER_ID!
+  );
+}
 
 export async function createMerchant(formData: FormData) {
   const name = formData.get('name') as string;
@@ -90,5 +98,33 @@ export async function denyPostulacionComercio(id: string) {
   if (error) {
     console.error('Error denying postulacion:', error);
     throw error;
+  }
+}
+
+export async function requestModificationComercio(
+  id: string,
+  waUserId: string,
+  campos: string[],
+  observacion: string
+) {
+  const camposText = campos.join(', ');
+  const correcciones = observacion
+    ? `${camposText}\n\n${observacion}`
+    : camposText;
+
+  const { error } = await supabaseAdmin
+    .from('postulaciones_comercio')
+    .update({ estado: 'requiere_modificacion', correcciones })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error requesting modification:', error);
+    throw error;
+  }
+
+  if (waUserId && observacion.trim()) {
+    const camposList = campos.map(c => `• ${c}`).join('\n');
+    const msg = `🔧 Tu postulación de comercio requiere algunas correcciones.\n\nCampos a actualizar:\n${camposList}\n\n${observacion}\n\nRespondé con los datos actualizados cuando estés listo.`;
+    await getMeta().sendMessage(waUserId, msg).catch(console.error);
   }
 }

@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
+import { MetaCloudProvider } from '@/lib/messaging/meta-cloud';
+
+const meta = new MetaCloudProvider(
+  process.env.META_ACCESS_TOKEN!,
+  process.env.META_PHONE_NUMBER_ID!
+);
 
 export async function GET(request: Request) {
   try {
@@ -101,8 +107,13 @@ export async function POST(request: Request) {
         .update({ estado: 'denegada' })
         .eq('id', id);
     } else if (action === 'correccion') {
-      // Expecting campos and observacion in the request body
       const { campos, observacion } = body;
+
+      const { data: post } = await supabaseAdmin
+        .from('postulaciones')
+        .select('wa_user_id')
+        .eq('id', id)
+        .single();
 
       await supabaseAdmin
         .from('postulaciones')
@@ -114,6 +125,12 @@ export async function POST(request: Request) {
           }),
         })
         .eq('id', id);
+
+      if (post?.wa_user_id && observacion?.trim()) {
+        const camposList = (campos as string[]).map((c: string) => `• ${c}`).join('\n');
+        const msg = `🔧 Tu postulación requiere algunas correcciones.\n\nCampos a actualizar:\n${camposList}\n\n${observacion}\n\nRespondé con los datos actualizados cuando estés listo.`;
+        await meta.sendMessage(post.wa_user_id, msg).catch(console.error);
+      }
     } else {
       return NextResponse.json(
         { error: 'Invalid action. Use "aceptar", "denegar", or "correccion"' },

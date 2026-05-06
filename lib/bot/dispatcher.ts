@@ -153,6 +153,14 @@ export async function handleIncomingMessage(
     return;
   }
 
+  if (lower === 'cancelar') {
+    if (conversationId) {
+      await setConversationContext(conversationId, {} as unknown as Json).catch(() => {});
+    }
+    await sendWelcome(from);
+    return;
+  }
+
   let ctx: Record<string, unknown> = {};
   if (conversationId) {
     ctx = ((await getOrCreateConversationContext(conversationId)) ?? {}) as Record<string, unknown>;
