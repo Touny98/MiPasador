@@ -7,8 +7,8 @@ const navLinks = [
   { href: '/admin', label: 'Dashboard' },
   { href: '/admin/merchants', label: 'Comercios' },
   { href: '/admin/products', label: 'Productos' },
+  { href: '/admin/compras', label: 'Compras' },
   { href: '/admin/gaps', label: 'Gaps' },
-  { href: '/admin/reservations', label: 'Reservas' },
   { href: '/admin/pasadores', label: 'Pasadores' },
 ];
 

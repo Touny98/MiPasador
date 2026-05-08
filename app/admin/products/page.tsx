@@ -19,6 +19,9 @@ export default function ProductsPage() {
     sku: '',
     category: '',
     stock: '',
+    stock_actual: '',
+    precio_bob: '',
+    precio_ars: '',
     image_url: '',
   });
 
@@ -71,6 +74,9 @@ export default function ProductsPage() {
         sku: '',
         category: '',
         stock: '',
+        stock_actual: '',
+        precio_bob: '',
+        precio_ars: '',
         image_url: '',
       });
       await fetchProducts();
@@ -98,6 +104,9 @@ export default function ProductsPage() {
         sku: '',
         category: '',
         stock: '',
+        stock_actual: '',
+        precio_bob: '',
+        precio_ars: '',
         image_url: '',
       });
       await fetchProducts();
@@ -205,14 +214,24 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Stock</label>
+              <label className="block text-sm font-medium mb-1">Stock (legacy)</label>
               <input
                 type="number"
                 name="stock"
                 value={formData.stock}
                 onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Stock disponible</label>
+              <input
+                type="number"
+                name="stock_actual"
+                value={formData.stock_actual}
+                onChange={(e) => setFormData({ ...formData, stock_actual: e.target.value })}
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
@@ -223,6 +242,31 @@ export default function ProductsPage() {
                 name="image_url"
                 value={formData.image_url}
                 onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Precio BOB (Bs.)</label>
+              <input
+                type="number"
+                step="0.01"
+                name="precio_bob"
+                value={formData.precio_bob}
+                onChange={(e) => setFormData({ ...formData, precio_bob: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Precio ARS ($)</label>
+              <input
+                type="number"
+                step="0.01"
+                name="precio_ars"
+                value={formData.precio_ars}
+                onChange={(e) => setFormData({ ...formData, precio_ars: e.target.value })}
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
@@ -262,6 +306,9 @@ export default function ProductsPage() {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Precio
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                BOB / ARS
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Stock
@@ -346,7 +393,10 @@ export default function ProductsPage() {
                       <td className="px-6 py-4">
                         {product.price ? `$${parseFloat(product.price).toFixed(2)}` : ''}
                       </td>
-                      <td className="px-6 py-4">{product.stock}</td>
+                      <td className="px-6 py-4 text-xs">
+                        {product.precio_bob ? `Bs.${product.precio_bob}` : '—'} / {product.precio_ars ? `$${product.precio_ars}` : '—'}
+                      </td>
+                      <td className="px-6 py-4">{product.stock_actual ?? product.stock ?? 0}</td>
                       <td className="px-6 py-4 space-x-2">
                         <button
                           onClick={() => {
@@ -360,6 +410,9 @@ export default function ProductsPage() {
                               sku: product.sku,
                               category: product.category,
                               stock: product.stock,
+                              stock_actual: product.stock_actual ?? '',
+                              precio_bob: product.precio_bob ?? '',
+                              precio_ars: product.precio_ars ?? '',
                               image_url: product.image_url,
                             });
                           }}

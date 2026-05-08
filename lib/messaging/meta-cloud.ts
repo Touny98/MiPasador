@@ -96,6 +96,78 @@ export class MetaCloudProvider {
     });
   }
 
+  private truncBtn(s: string): string {
+    return s.length > 20 ? s.slice(0, 20) : s;
+  }
+
+  async sendImage(to: string, imageUrl: string, caption?: string): Promise<void> {
+    const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
+    const image: Record<string, unknown> = { link: imageUrl };
+    if (caption) image.caption = caption;
+    const msgBody = { messaging_product: 'whatsapp', to, type: 'image', image };
+    await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(msgBody),
+    });
+  }
+
+  async sendLocationRequest(to: string, body: string): Promise<void> {
+    const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
+    const msgBody = {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'location_request_message',
+        body: { text: body },
+        action: { name: 'send_location' },
+      },
+    };
+    await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(msgBody),
+    });
+  }
+
+  async sendProductoCard(
+    to: string,
+    opts: {
+      imageUrl: string | null;
+      nombre: string;
+      precioBob?: number | null;
+      precioArs?: number | null;
+      comercio?: string | null;
+      direccion?: string | null;
+      stock?: number | null;
+    },
+    buttons: { id: string; title: string }[]
+  ): Promise<void> {
+    const placeholderUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/documentos/placeholder.png`
+      : null;
+    const img = opts.imageUrl || placeholderUrl;
+
+    const lines: string[] = [`*${opts.nombre}*`];
+    if (opts.precioBob) lines.push(`💲 Bs. ${opts.precioBob}`);
+    if (opts.precioArs) lines.push(`💵 $${opts.precioArs} ARS`);
+    if (opts.comercio) lines.push(`🏪 ${opts.comercio}`);
+    if (opts.direccion) lines.push(`📍 ${opts.direccion}`);
+    if (opts.stock != null) lines.push(`📦 Stock: ${opts.stock}`);
+    const bodyText = lines.join('\n');
+
+    if (img) {
+      await this.sendImage(to, img).catch(() => {});
+    }
+
+    await this.sendInteractiveButtons(
+      to,
+      bodyText,
+      buttons.map((b) => ({ id: b.id, title: this.truncBtn(b.title) }))
+    );
+  }
+
   async getMediaInfo(mediaId: string): Promise<{ url: string; mimeType: string }> {
     const url = `${this.baseUrl}/${mediaId}`;
     const response = await this.fetchWithRetry(url, {

@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/follow-up",
       "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/expiracion-pagos",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/verificar-pagos",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

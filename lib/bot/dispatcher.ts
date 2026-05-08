@@ -6,6 +6,7 @@ import { detectarIntencionPasador, manejarSolicitud, manejarComando, manejarPost
 import { getOrCreateConversationContext, setConversationContext } from '@/lib/services/pasadorService';
 import { handleSalesMessage, handleSalesInteractive, SalesFlowState, showCategoryList } from './sales-flow';
 import { manejarMerchantPostulacion } from '@/lib/bot/merchant-flow';
+import { cancelarCompra } from '@/lib/services/compraService';
 import type { Json } from '@/lib/database.types';
 
 const metaProvider = new MetaCloudProvider(
@@ -29,7 +30,7 @@ async function sendWelcome(from: string): Promise<void> {
         ],
       },
     ],
-    MSG.SEARCH_HEADER(4) // Repurposing this for the list header
+    MSG.SEARCH_HEADER(4)
   ).catch(() => {});
 }
 
@@ -78,6 +79,82 @@ export async function handleInteractiveMessage(
   const ctx = ((await getOrCreateConversationContext(conversationId)) ?? {}) as Record<string, unknown>;
   const salesFlow = (ctx.sales_flow ?? null) as SalesFlowState | null;
 
+  // Cancel order button (may appear from any context)
+  if (replyId.startsWith('cancel_orden_')) {
+    const compraId = replyId.replace('cancel_orden_', '');
+    await cancelarCompra(compraId).catch(() => {});
+    await setConversationContext(conversationId, { ...ctx, sales_flow: null } as unknown as Json).catch(() => {});
+    await sendWelcome(from);
+    return;
+  }
+
+  if (replyId === 'cancel_chat') {
+    await setConversationContext(conversationId, {} as unknown as Json).catch(() => {});
+    await sendWelcome(from);
+    return;
+  }
+
+  if (replyId === 'seguir_comprando') {
+    await metaProvider.sendMessage(from, '¡Seguí eligiendo! 🛒').catch(() => {});
+    return;
+  }
+
+  // Merchant category selection buttons
+  if (replyId.startsWith('comercio_cat_done_')) {
+    const postulacionId = replyId.replace('comercio_cat_done_', '');
+    await setConversationContext(conversationId, { ...ctx, comercio_paso: `direccion:${postulacionId}` } as unknown as Json).catch(() => {});
+    await metaProvider.sendMessage(from, '📍 ¿Cuál es la dirección del local?\n(calle, número, ciudad)').catch(() => {});
+    return;
+  }
+
+  if (replyId.startsWith('comercio_cat_mas_')) {
+    const postulacionId = replyId.replace('comercio_cat_mas_', '');
+    const { data: current } = await supabaseAdmin.from('postulaciones_comercio').select('categoria_productos').eq('id', postulacionId).single();
+    const seleccionadas = current?.categoria_productos ? current.categoria_productos.split(', ') : [];
+    const metaProviderRef = metaProvider;
+    // Re-send the category list excluding already selected
+    const cats: string[] = [];
+    const { data: dbCats } = await supabaseAdmin.from('products').select('category').eq('is_active', true).not('category', 'is', null);
+    for (const r of dbCats ?? []) if (r.category) cats.push(r.category);
+    const FIXED = ['Alimentos', 'Ropa', 'Calzado', 'Electrónica', 'Hogar', 'Accesorios', 'Otro'];
+    const merged = Array.from(new Set([...cats, ...FIXED])).filter(c => !seleccionadas.includes(c));
+    const rows = merged.slice(0, 10).map(cat => ({ id: `comercio_cat_${postulacionId}_${cat}`, title: cat }));
+    if (rows.length > 0) {
+      if (rows.length <= 3) {
+        await metaProviderRef.sendInteractiveButtons(from, '¿Qué otra categoría vendés? 👇', rows).catch(() => {});
+      } else {
+        await metaProviderRef.sendList(from, 'Elegí otra categoría 👇', 'Ver categorías', [{ title: 'Categorías', rows }]).catch(() => {});
+      }
+    } else {
+      await metaProviderRef.sendMessage(from, 'Ya no hay más categorías. Escribí "listo" para continuar.').catch(() => {});
+    }
+    await setConversationContext(conversationId, { ...ctx, comercio_paso: `categoria_mas:${postulacionId}` } as unknown as Json).catch(() => {});
+    return;
+  }
+
+  if (replyId.startsWith('comercio_cat_')) {
+    // Format: comercio_cat_<postulacionId>_<categoryName>
+    const rest = replyId.replace('comercio_cat_', '');
+    const underscoreIdx = rest.indexOf('_');
+    if (underscoreIdx === -1) return;
+    const postulacionId = rest.slice(0, underscoreIdx);
+    const catName = rest.slice(underscoreIdx + 1);
+    const { data: current } = await supabaseAdmin.from('postulaciones_comercio').select('categoria_productos').eq('id', postulacionId).single();
+    const existing = current?.categoria_productos ? `${current.categoria_productos}, ${catName}` : catName;
+    await supabaseAdmin.from('postulaciones_comercio').update({ categoria_productos: existing }).eq('id', postulacionId);
+    await metaProvider.sendInteractiveButtons(
+      from,
+      `✅ *${catName}* guardada.\n¿Querés agregar otra categoría?`,
+      [
+        { id: `comercio_cat_mas_${postulacionId}`, title: 'Agregar otra ➕' },
+        { id: `comercio_cat_done_${postulacionId}`, title: 'Listo ✔️' },
+      ]
+    ).catch(() => {});
+    await setConversationContext(conversationId, { ...ctx, comercio_paso: `categoria_mas:${postulacionId}` } as unknown as Json).catch(() => {});
+    return;
+  }
+
+  // Sales flow interactive buttons
   const { type } = parseReserveButtonId(replyId);
   if (type !== 'unknown') {
     const newSalesFlow = await handleSalesInteractive(from, replyId, merchantId, conversationId, salesFlow, metaProvider);
@@ -124,10 +201,10 @@ export async function handleInteractiveMessage(
       break;
     }
     case 'publicar_negocio': {
-      const respuesta = await manejarMerchantPostulacion(from, 'inicio', '');
+      const respuesta = await manejarMerchantPostulacion(from, 'inicio', '', [], metaProvider);
       const [msg, nextPaso] = respuesta.split('|||');
       await setConversationContext(conversationId, { ...ctx, comercio_paso: nextPaso ?? 'nombre' } as unknown as Json).catch(() => {});
-      await metaProvider.sendMessage(from, msg).catch(() => {});
+      if (msg.trim()) await metaProvider.sendMessage(from, msg).catch(() => {});
       break;
     }
     case 'menu_talk':
@@ -154,28 +231,51 @@ export async function handleIncomingMessage(
     return;
   }
 
+  let ctx: Record<string, unknown> = {};
+  if (conversationId) {
+    ctx = ((await getOrCreateConversationContext(conversationId)) ?? {}) as Record<string, unknown>;
+  }
+
+  // Enhanced cancel UX: disambiguate order cancel vs conversation cancel
   if (lower === 'cancelar') {
     if (conversationId) {
+      const { data: compra } = await supabaseAdmin
+        .from('compras')
+        .select('id, codigo_seguridad')
+        .eq('wa_user_id', from)
+        .eq('estado', 'pendiente_pago')
+        .maybeSingle();
+
+      if (compra) {
+        await metaProvider.sendInteractiveButtons(
+          from,
+          '¿Qué querés cancelar?',
+          [
+            { id: `cancel_orden_${compra.id}`, title: 'Cancelar orden ❌' },
+            { id: 'cancel_chat', title: 'Cancelar chat 💬' },
+            { id: 'seguir_comprando', title: 'Seguir comprando 🛒' },
+          ]
+        ).catch(() => {});
+        return;
+      }
+
       await setConversationContext(conversationId, {} as unknown as Json).catch(() => {});
     }
     await sendWelcome(from);
     return;
   }
 
-  let ctx: Record<string, unknown> = {};
   if (conversationId) {
-    ctx = ((await getOrCreateConversationContext(conversationId)) ?? {}) as Record<string, unknown>;
-
     if (ctx.pasador_flow) {
       let ctxToProcess = ctx;
-      if ((ctx.pasador_flow as any).step === 'ubicacion' && trimmed.startsWith('LOCATION:')) {
+      if ((ctx.pasador_flow as Record<string, unknown>).step === 'ubicacion' && trimmed.startsWith('LOCATION:')) {
         const [latStr, lngStr] = trimmed.replace('LOCATION:', '').split(',');
         ctxToProcess = {
           ...ctx,
           pasador_flow: {
-            ...(ctx.pasador_flow as any),
+            ...(ctx.pasador_flow as Record<string, unknown>),
             data: {
-              ...(ctx.pasador_flow as any).data,
+              ...(ctx.pasador_flow as Record<string, unknown>).data as Record<string, unknown>,
               ubicacion: { lat: parseFloat(latStr), lng: parseFloat(lngStr) },
             },
           },
@@ -220,13 +320,13 @@ export async function handleIncomingMessage(
 
     if (ctx.comercio_paso) {
       const imagenes = mediaIds.length > 0 ? await resolveMediaUrls(mediaIds) : [];
-      const respuesta = await manejarMerchantPostulacion(from, ctx.comercio_paso as string, trimmed, imagenes);
+      const respuesta = await manejarMerchantPostulacion(from, ctx.comercio_paso as string, trimmed, imagenes, metaProvider);
       const [msg, nextPaso] = respuesta.split('|||');
       const updatedCtx = nextPaso
         ? { ...ctx, comercio_paso: nextPaso }
         : { ...ctx, comercio_paso: null };
       await setConversationContext(conversationId, updatedCtx as unknown as Json).catch(() => {});
-      await metaProvider.sendMessage(from, msg).catch(() => {});
+      if (msg.trim()) await metaProvider.sendMessage(from, msg).catch(() => {});
       return;
     }
   }
@@ -265,7 +365,6 @@ export async function handleIncomingMessage(
     if (newSalesFlow !== null) {
       await setConversationContext(conversationId, { ...ctx, sales_flow: newSalesFlow } as unknown as Json).catch(() => {});
     } else if (ctx.sales_flow !== null) {
-      // If newSalesFlow is null and there was a flow, we must explicitly clear it in the DB
       await setConversationContext(conversationId, { ...ctx, sales_flow: null } as unknown as Json).catch(() => {});
     }
 

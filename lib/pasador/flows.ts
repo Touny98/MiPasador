@@ -140,33 +140,24 @@ export async function manejarSolicitud(
       state.step = 'inicio';
       return { respuesta: '⚠️ Falta información del pedido. Empecemos de nuevo.', estado: state };
     }
-    const precio = await calcularPrecio(state.data.ruta, state.data.peso);
+    const rutaFija = 'bermejo-aguas_blancas';
+    const precio = await calcularPrecio(rutaFija, state.data.peso);
     state.data.precio = precio;
 
-    const pasador = await asignarPasador();
-
-    if (!pasador) {
-      state.step = 'inicio';
-      return {
-        respuesta: '😔 Sin pasadores disponibles ahora.\nIntentá en un rato.',
-        estado: state
-      };
-    }
-
-    state.data.pasadorId = pasador.id;
-
-    // Now we create a viaje record
+    // Insert viaje with no pasador first (atomic assignment follows)
     const { data: viaje, error } = await supabaseAdmin
       .from('viajes')
       .insert({
-        pasador_id: state.data.pasadorId,
+        pasador_id: null,
         usuario_wa_id: waUserId,
-        direccion_origen: state.data.ubicacion ? `${state.data.ubicacion.lat},${state.data.ubicacion.lng}` : '',
-        direccion_destino: state.data.descripcion, // We'll use descripcion as destination for now, but ideally we'd have a separate destination field
+        direccion_origen: state.data.ruta ?? (state.data.ubicacion ? `${state.data.ubicacion.lat},${state.data.ubicacion.lng}` : ''),
+        direccion_destino: 'Aguas Blancas',
         peso: state.data.peso,
-        precio_ars: state.data.precio,
-        estado: 'asignado',
-        ruta: state.data.ruta,
+        precio_ars: precio,
+        comision_ars: Math.round(precio * 0.1),
+        estado: 'pendiente',
+        ruta: rutaFija,
+        descripcion: state.data.descripcion,
       })
       .select('id')
       .single();
@@ -183,21 +174,33 @@ export async function manejarSolicitud(
     state.data.viajeId = viaje.id;
     state.step = 'confirmacion';
 
+    // Atomic pasador assignment
+    const pasador = await asignarPasadorAtomic(viaje.id);
+
+    if (!pasador) {
+      return {
+        respuesta: `📦 Viaje registrado. Buscando pasador disponible...\n⏱️ Bermejo → Aguas Blancas\n💵 $${precio.toFixed(0)} ARS\nTe avisamos cuando asignemos uno.`,
+        estado: state
+      };
+    }
+
+    state.data.pasadorId = pasador.id;
+
     // Notify the assigned pasador
     const { data: pasadorInfo } = await supabaseAdmin
       .from('pasadores')
       .select('wa_user_id')
-      .eq('id', state.data.pasadorId)
+      .eq('id', pasador.id)
       .single();
     if (pasadorInfo?.wa_user_id) {
       await metaProvider.sendMessage(
         pasadorInfo.wa_user_id,
-        `🔔 Nuevo viaje asignado!\nRuta: ${state.data.ruta}\nPeso: ${state.data.peso} kg\nPrecio: $${precio.toFixed(2)} ARS\nRespondé *ACEPTO para aceptar o *RECHAZO para rechazar.`
+        `🔔 Nuevo viaje asignado!\n📍 Bermejo → Aguas Blancas\n⚖️ Peso: ${state.data.peso} kg\n💵 $${precio.toFixed(0)} ARS\nRespondé *ACEPTO para aceptar o *RECHAZO para rechazar.`
       ).catch(() => {});
     }
 
     return {
-      respuesta: `✅ ¡Listo! Pasador asignado: ${pasador.nombre_completo || 'Sin nombre'}.\n💰 Precio: $${precio.toFixed(2)} ARS\nTe avisamos cuando acepte.`,
+      respuesta: `✅ ¡Listo! Pasador: ${pasador.nombre_completo || 'Nuestro pasador'}.\n📍 Bermejo → Aguas Blancas\n💵 $${precio.toFixed(0)} ARS\n⏱️ 20–30 min\nTe avisamos cuando acepte.`,
       estado: state
     };
   }
@@ -281,11 +284,34 @@ export async function calcularPrecio(ruta: string, peso: number): Promise<number
 }
 
 /**
- * Assign the best available pasador.
- * @returns Pasador object or null if none available
+ * Atomically assign the best available pasador to an existing viaje.
+ * Inserts viaje first with pasador_id=null, then locks a pasador via optimistic concurrency.
  */
+export async function asignarPasadorAtomic(viajeId: number): Promise<{ id: number; nombre_completo: string | null } | null> {
+  const { data: candidatos } = await supabaseAdmin
+    .from('pasadores')
+    .select('id, nombre_completo')
+    .eq('activo', true)
+    .eq('estado', 'disponible')
+    .order('reputacion_promedio', { ascending: false })
+    .order('cantidad_viajes_completados', { ascending: false });
+
+  for (const p of candidatos ?? []) {
+    const { data, error } = await supabaseAdmin
+      .from('viajes')
+      .update({ pasador_id: p.id, estado: 'asignado' })
+      .eq('id', viajeId)
+      .is('pasador_id', null)
+      .eq('estado', 'pendiente')
+      .select('id')
+      .maybeSingle();
+    if (data && !error) return p;
+  }
+  return null;
+}
+
+/** @deprecated Use asignarPasadorAtomic instead */
 export async function asignarPasador(): Promise<{ id: number; nombre_completo: string | null; reputacion_promedio: number | null; cantidad_viajes_completados: number | null } | null> {
-  // Buscar pasadores activos (activo=true) ordenados por reputacion_promedio DESC, cantidad_viajes_completados DESC.
   const { data, error } = await supabaseAdmin
     .from('pasadores')
     .select('id, nombre_completo, reputacion_promedio, cantidad_viajes_completados')
@@ -295,10 +321,7 @@ export async function asignarPasador(): Promise<{ id: number; nombre_completo: s
     .order('cantidad_viajes_completados', { ascending: false })
     .limit(1);
 
-  if (error || !data || data.length === 0) {
-    return null;
-  }
-
+  if (error || !data || data.length === 0) return null;
   return data[0];
 }
 
@@ -457,6 +480,13 @@ export async function manejarComando(waUserId: string, comando: string): Promise
         .from('pasadores')
         .update({ estado: 'disponible', cantidad_viajes_completados: newCount })
         .eq('id', pasador.id);
+
+      // Also mark compra as entregado if linked
+      await supabaseAdmin
+        .from('compras')
+        .update({ estado: 'entregado', updated_at: new Date().toISOString() })
+        .eq('viaje_id', viaje.id)
+        .neq('estado', 'entregado');
 
       return '✅ Viaje marcado como completado. Se ha solicitado un rating al usuario.';
     }

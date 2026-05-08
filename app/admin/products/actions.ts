@@ -11,7 +11,13 @@ export async function createProduct(formData: FormData) {
   const sku = formData.get('sku') as string;
   const category = formData.get('category') as string;
   const stock = formData.get('stock') as string;
+  const stock_actual = formData.get('stock_actual') as string;
+  const precio_bob = formData.get('precio_bob') as string;
+  const precio_ars = formData.get('precio_ars') as string;
   const image_url = formData.get('image_url') as string;
+
+  const stockVal = parseInt(stock, 10) || 0;
+  const stockActualVal = stock_actual ? parseInt(stock_actual, 10) : stockVal;
 
   const { error } = await supabaseAdmin
     .from('products')
@@ -24,7 +30,10 @@ export async function createProduct(formData: FormData) {
         currency,
         sku,
         category: category || null,
-        stock: parseInt(stock, 10) || 0,
+        stock: stockVal,
+        stock_actual: stockActualVal,
+        precio_bob: precio_bob ? parseFloat(precio_bob) : null,
+        precio_ars: precio_ars ? parseFloat(precio_ars) : null,
         image_url: image_url || null,
       }
     ]);
@@ -44,7 +53,12 @@ export async function updateProduct(id: string, formData: FormData) {
   const sku = formData.get('sku') as string;
   const category = formData.get('category') as string;
   const stock = formData.get('stock') as string;
+  const stock_actual = formData.get('stock_actual') as string;
+  const precio_bob = formData.get('precio_bob') as string;
+  const precio_ars = formData.get('precio_ars') as string;
   const image_url = formData.get('image_url') as string;
+
+  const stockVal = parseInt(stock, 10) || 0;
 
   const { error } = await supabaseAdmin
     .from('products')
@@ -56,7 +70,10 @@ export async function updateProduct(id: string, formData: FormData) {
       currency,
       sku,
       category: category || null,
-      stock: parseInt(stock, 10) || 0,
+      stock: stockVal,
+      stock_actual: stock_actual ? parseInt(stock_actual, 10) : stockVal,
+      precio_bob: precio_bob ? parseFloat(precio_bob) : null,
+      precio_ars: precio_ars ? parseFloat(precio_ars) : null,
       image_url: image_url || null,
     })
     .eq('id', id);

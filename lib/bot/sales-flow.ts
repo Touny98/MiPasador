@@ -1,185 +1,196 @@
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { MetaCloudProvider } from '@/lib/messaging/meta-cloud';
-import { searchProducts } from '@/lib/search/products';
-import { createReservation } from '@/lib/services/reservationService';
-import { MSG, truncate, isConfirmation, isNegation, isDoubtCheaper, isDoubtBetter, parseReserveButtonId } from '@/lib/bot/messages';
+import { getCategorias, getProductosPorCategoria } from '@/lib/search/products';
+import {
+  generarCodigoSeguridad,
+  reducirStock,
+  crearCompra,
+  cancelarCompra,
+  liberarStock,
+} from '@/lib/services/compraService';
+import { generarLinkPago, verificarPago, registrarEvento } from '@/lib/pagos/mercadopago';
+import { MSG, parseReserveButtonId } from '@/lib/bot/messages';
 
-export interface SalesFlowState {
-  step: 'eligiendo_categoria' | 'opciones' | 'decision';
-  lastQuery: string;
-  shownProductIds: string[];
-  topProductId: string;
-  topProductName: string;
-  topProductPrice: number;
-  followUpScheduled: boolean;
-  selectedCategory?: string;
-}
+export type SalesFlowState =
+  | { step: 'eligiendo_categoria' }
+  | { step: 'viendo_productos'; categoria: string; offset: number }
+  | { step: 'esperando_pago'; compraId: string; productoId: string }
+  | { step: 'eligiendo_pasador'; compraId: string; productoId: string }
+  | { step: 'capturando_peso_pasador'; compraId: string }
+  | { step: 'capturando_dir_pasador'; compraId: string; pesoKg: number };
 
-export function generateReservationCode(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
+export async function showCategoryList(
+  from: string,
+  merchantId: string,
+  metaProvider: MetaCloudProvider
+): Promise<void> {
+  const cats = await getCategorias(merchantId || undefined);
 
-async function showProductOptions(from: string, products: any[], metaProvider: MetaCloudProvider) {
-  if (products.length === 0) return;
+  if (cats.length === 0) {
+    await metaProvider.sendMessage(from, 'No hay productos disponibles ahora. Volvé pronto 🙏');
+    return;
+  }
 
-  const p = products[0];
-
-  if (products.length === 1) {
+  if (cats.length <= 3) {
     await metaProvider.sendInteractiveButtons(
       from,
-      `${p.name} — $${p.price}${p.description ? '\n' + truncate(p.description, 60) : ''}`,
-      [
-        { id: `sales_reserve_${p.id}`, title: MSG.BTN_RESERVE },
-        { id: 'sales_cheaper', title: MSG.BTN_CHEAPER },
-        { id: 'sales_more', title: MSG.BTN_MORE },
-      ],
-      MSG.SEARCH_HEADER(1),
-      p.total_reservations > 0 ? `🔥 ${p.total_reservations} personas lo reservaron` : undefined
+      '¿Qué categoría te interesa? 👇',
+      cats.map((cat) => ({ id: `sales_cat_${cat}`, title: cat }))
     );
   } else {
     await metaProvider.sendList(
       from,
-      MSG.SEARCH_BODY,
-      MSG.SEARCH_BUTTON,
-      [
-        {
-          title: '✅ Recomendado',
-          rows: [
-            { id: `sales_reserve_${p.id}`, title: truncate('🔥 ' + p.name, 24), description: `$${p.price} · más elegido` },
-          ],
-        },
-        {
-          title: 'Otras opciones',
-          rows: products.slice(1).map(prod => ({
-            id: `sales_reserve_${prod.id}`,
-            title: truncate(prod.name, 24),
-            description: `$${prod.price}`,
-          })),
-        },
-      ],
-      MSG.SEARCH_HEADER(products.length)
-    );
-
-    await metaProvider.sendInteractiveButtons(
-      from,
-      MSG.PUSH_DECISION,
-      [
-        { id: `sales_reserve_${p.id}`, title: MSG.BTN_RESERVE },
-        { id: 'sales_cheaper', title: MSG.BTN_CHEAPER },
-        { id: 'sales_no_thanks', title: MSG.BTN_NO_THANKS },
-      ]
+      'Elegí una categoría para ver productos 👇',
+      'Ver categorías',
+      [{ title: 'Categorías disponibles', rows: cats.map((cat) => ({ id: `sales_cat_${cat}`, title: cat })) }]
     );
   }
 }
 
-export async function showCategoryList(from: string, merchantId: string, metaProvider: MetaCloudProvider) {
-  const baseQuery = supabaseAdmin
-    .from('products')
-    .select('category')
-    .not('category', 'is', null)
-    .eq('is_active', true)
-    .order('category');
+async function showProductos(
+  from: string,
+  categoria: string,
+  offset: number,
+  merchantId: string,
+  metaProvider: MetaCloudProvider
+): Promise<void> {
+  const productos = await getProductosPorCategoria(categoria, offset, 3, merchantId || undefined);
 
-  const { data: categories, error } = merchantId
-    ? await baseQuery.eq('merchant_id', merchantId)
-    : await baseQuery;
-
-  if (error || !categories) {
-    console.error('Error fetching categories:', error);
-    await metaProvider.sendMessage(from, 'No pudimos cargar las categorías. Por favor, escribí el nombre del producto que buscás 🔍');
+  if (productos.length === 0) {
+    if (offset === 0) {
+      await metaProvider.sendMessage(from, `No quedan productos en ${categoria} 😔\nEscribí "cancelar" para volver al menú.`);
+    } else {
+      await metaProvider.sendInteractiveButtons(
+        from,
+        `No hay más productos en ${categoria}.`,
+        [{ id: 'sales_search', title: 'Ver categorías' }]
+      );
+    }
     return;
   }
 
-  const uniqueCategories = Array.from(new Set(categories.map(c => c.category)));
+  for (const p of productos) {
+    let comercioNombre: string | null = null;
+    if (p.merchant_id) {
+      const { data: m } = await supabaseAdmin.from('merchants').select('name').eq('id', p.merchant_id).single();
+      comercioNombre = m?.name ?? null;
+    }
 
-  if (uniqueCategories.length === 0) {
-    await metaProvider.sendMessage(from, 'No hay categorías disponibles. Por favor, escribí el nombre del producto que buscás 🔍');
-    return;
-  }
+    const buttons: { id: string; title: string }[] = [
+      { id: `buy_${p.id}`, title: 'Comprar 🛒' },
+    ];
+    if (productos.indexOf(p) === productos.length - 1) {
+      buttons.push({ id: 'cat_next', title: 'Ver más' });
+    }
 
-  if (uniqueCategories.length <= 3) {
-    await metaProvider.sendInteractiveButtons(
+    await metaProvider.sendProductoCard(
       from,
-      'Elegí una categoría 👇',
-      uniqueCategories.map(cat => ({ id: `sales_cat_${cat}`, title: cat })),
-      MSG.SEARCH_HEADER(uniqueCategories.length)
-    );
-  } else {
-    await metaProvider.sendList(
-      from,
-      'Elegí una categoría para empezar 👇',
-      "Ver categorías",
-      [
-        {
-          title: "Categorías disponibles",
-          rows: uniqueCategories.map(cat => ({ id: `sales_cat_${cat}`, title: cat })),
-        },
-      ],
-      MSG.SEARCH_HEADER(uniqueCategories.length)
-    );
-  }
-}
-
-async function showCategoryProducts(from: string, category: string, merchantId: string, metaProvider: MetaCloudProvider) {
-  const baseQuery = supabaseAdmin
-    .from('products')
-    .select('*')
-    .eq('category', category)
-    .eq('is_active', true)
-    .order('total_reservations', { ascending: false })
-    .limit(10);
-
-  const { data: products, error } = merchantId
-    ? await baseQuery.eq('merchant_id', merchantId)
-    : await baseQuery;
-
-  if (error || !products || products.length === 0) {
-    await metaProvider.sendMessage(from, `No encontré productos en la categoría ${category}. Intentá buscar por nombre 🔍`);
-    return;
-  }
-
-  await metaProvider.sendList(
-    from,
-    `Productos más populares de ${category} 👇`,
-    "Ver productos",
-    [
       {
-        title: '🔥 MÁS ELEGIDOS',
-        rows: products.map(p => ({
-          id: `sales_reserve_${p.id}`,
-          title: truncate(p.name, 24),
-          description: `$${p.price}`,
-        })),
+        imageUrl: p.image_url,
+        nombre: p.name,
+        precioBob: p.precio_bob,
+        precioArs: p.precio_ars,
+        comercio: comercioNombre,
+        stock: p.stock_actual,
       },
-    ],
-    MSG.SEARCH_HEADER(products.length)
-  );
-
-  const top = products[0];
-  await metaProvider.sendInteractiveButtons(
-    from,
-    '¿Te interesa alguno de estos? 👇',
-    [
-      { id: `sales_reserve_${top.id}`, title: MSG.BTN_RESERVE },
-      { id: 'sales_cheaper', title: MSG.BTN_CHEAPER },
-      { id: 'sales_no_thanks', title: MSG.BTN_NO_THANKS },
-    ]
-  );
+      buttons
+    ).catch(() => {});
+  }
 }
 
-async function scheduleFollowUp(conversationId: string, productId: string, productName: string) {
-  const days = [1, 3, 7];
-  const followUps = days.map(day => ({
-    conversation_id: conversationId,
-    product_id: productId,
-    product_name: productName,
-    follow_up_day: day,
-    scheduled_at: new Date(Date.now() + day * 24 * 60 * 60 * 1000).toISOString(),
-    created_at: new Date().toISOString(),
-  }));
+async function asignarPasadorParaViaje(viajeId: number): Promise<{ id: number; nombre_completo: string | null } | null> {
+  const { data: candidatos } = await supabaseAdmin
+    .from('pasadores')
+    .select('id, nombre_completo')
+    .eq('activo', true)
+    .eq('estado', 'disponible')
+    .order('reputacion_promedio', { ascending: false })
+    .order('cantidad_viajes_completados', { ascending: false });
 
-  const { error } = await supabaseAdmin.from('follow_ups').insert(followUps);
-  if (error) console.error('Error scheduling follow-ups:', error);
+  for (const p of candidatos ?? []) {
+    const { data, error } = await supabaseAdmin
+      .from('viajes')
+      .update({ pasador_id: p.id, estado: 'asignado' })
+      .eq('id', viajeId)
+      .is('pasador_id', null)
+      .eq('estado', 'pendiente')
+      .select('id')
+      .maybeSingle();
+    if (data && !error) return p;
+  }
+  return null;
+}
+
+async function iniciarEntregaPasador(
+  from: string,
+  compraId: string,
+  pesoKg: number,
+  lat: number,
+  lng: number,
+  merchantId: string,
+  metaProvider: MetaCloudProvider
+): Promise<void> {
+  const { data: compra } = await supabaseAdmin
+    .from('compras')
+    .select('producto_id, codigo_seguridad')
+    .eq('id', compraId)
+    .single();
+
+  let origenDir = 'Bermejo';
+  if (merchantId) {
+    const { data: m } = await supabaseAdmin.from('merchants').select('address, name').eq('id', merchantId).single();
+    if (m?.address) origenDir = m.address;
+  }
+
+  const destino = `${lat},${lng}`;
+
+  const { data: tarifa } = await supabaseAdmin
+    .from('tarifas_pasador')
+    .select('precio_ars')
+    .eq('ruta', 'bermejo-aguas_blancas')
+    .eq('activa', true)
+    .lte('peso_min', pesoKg)
+    .gte('peso_max', pesoKg)
+    .single();
+
+  const precioArs = tarifa?.precio_ars ?? 0;
+
+  const { data: viaje, error: vErr } = await supabaseAdmin
+    .from('viajes')
+    .insert({
+      usuario_wa_id: from,
+      ruta: 'bermejo-aguas_blancas',
+      peso: pesoKg,
+      precio_ars: precioArs,
+      comision_ars: Math.round(precioArs * 0.1),
+      direccion_origen: origenDir,
+      direccion_destino: destino,
+      estado: 'pendiente',
+      codigo_seguridad: compra?.codigo_seguridad ?? null,
+    })
+    .select('id')
+    .single();
+
+  if (vErr || !viaje) {
+    await metaProvider.sendMessage(from, 'No pudimos crear el viaje. Intentá de nuevo 😔').catch(() => {});
+    return;
+  }
+
+  await supabaseAdmin.from('compras').update({ viaje_id: viaje.id, estado: 'en_preparacion', solicito_pasador: true }).eq('id', compraId);
+
+  const pasador = await asignarPasadorParaViaje(viaje.id);
+
+  if (pasador) {
+    await metaProvider.sendMessage(
+      from,
+      `✅ *Pasador asignado*\n👤 ${pasador.nombre_completo ?? 'Nuestro pasador'}\n📦 Peso: ${pesoKg} kg\n💵 Tarifa: $${precioArs} ARS\n⏱️ Estimado: 20–30 min\n🔐 Código: ${compra?.codigo_seguridad ?? ''}`
+    ).catch(() => {});
+  } else {
+    await metaProvider.sendMessage(
+      from,
+      `📦 Pedido registrado. Buscando pasador disponible...\n🔐 Código: ${compra?.codigo_seguridad ?? ''}\nTe avisamos cuando asignemos uno ⏳`
+    ).catch(() => {});
+  }
 }
 
 export async function handleSalesMessage(
@@ -190,113 +201,79 @@ export async function handleSalesMessage(
   salesFlow: SalesFlowState | null,
   metaProvider: MetaCloudProvider
 ): Promise<SalesFlowState | null> {
-  const trimmedText = text.toLowerCase().trim();
+  if (!salesFlow) return null;
 
-  if (salesFlow === null) {
-    const products = await searchProducts(text, merchantId);
-
-    const normalized = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/\s+/g, ' ');
-    const { error: analyticsErr } = await supabaseAdmin.from('queries').insert({
-      search_term: text,
-      normalized_search_term: normalized,
-      results_count: products.length,
-      resolved_bool: products.length > 0,
-      conversation_id: conversationId || null,
-    });
-    if (analyticsErr) console.error('Analytics error:', analyticsErr);
-
-    if (products.length === 0) {
-      await metaProvider.sendInteractiveButtons(
-        from,
-        MSG.NO_RESULTS,
-        [
-          { id: 'menu_search', title: MSG.BTN_SEARCH },
-          { id: 'menu_talk', title: MSG.BTN_TALK },
-        ]
-      );
-      return null;
-    }
-
-    await showProductOptions(from, products, metaProvider);
-
-    return {
-      step: 'opciones',
-      lastQuery: text,
-      shownProductIds: products.map(p => p.id),
-      topProductId: products[0].id,
-      topProductName: products[0].name,
-      topProductPrice: parseFloat(products[0].price as any),
-      followUpScheduled: false,
-    };
+  if (salesFlow.step === 'viendo_productos') {
+    await metaProvider.sendMessage(from, 'Usá los botones para elegir o escribí "cancelar" para volver al menú 👆').catch(() => {});
+    return salesFlow;
   }
 
-  if (salesFlow.step === 'opciones') {
-    if (isConfirmation(trimmedText)) {
-      const code = generateReservationCode();
-      await createReservation({ conversationId, productId: salesFlow.topProductId, notes: code });
-      await metaProvider.sendMessage(from, MSG.RESERVE_CONFIRM(salesFlow.topProductName, code));
-      await scheduleFollowUp(conversationId, salesFlow.topProductId, salesFlow.topProductName);
-      return null;
-    }
-
-    if (isDoubtCheaper(trimmedText)) {
-      await metaProvider.sendMessage(from, MSG.DOUBT_CHEAPER);
-      const products = await searchProducts(salesFlow.lastQuery, merchantId);
-      const cheaperProducts = products.filter(p => parseFloat(p.price as any) < salesFlow.topProductPrice);
-
-      if (cheaperProducts.length === 0) {
-        await metaProvider.sendMessage(from, 'No encontré nada más barato, pero estas son las mejores opciones 👇');
-        await showProductOptions(from, products, metaProvider);
-      } else {
-        await showProductOptions(from, cheaperProducts, metaProvider);
+  if (salesFlow.step === 'esperando_pago') {
+    const lower = text.toLowerCase().trim();
+    if (lower.includes('pagué') || lower.includes('pague') || lower === 'ya pagué' || lower === 'ya pague') {
+      const { data: compra } = await supabaseAdmin.from('compras').select('mp_payment_id').eq('id', salesFlow.compraId).single();
+      if (compra?.mp_payment_id) {
+        const status = await verificarPago(compra.mp_payment_id);
+        if (status === 'approved') {
+          await registrarEvento(salesFlow.compraId, 'approved', {}).catch(() => {});
+          await supabaseAdmin.from('compras').update({ estado: 'pagado', updated_at: new Date().toISOString() }).eq('id', salesFlow.compraId);
+          await supabaseAdmin.from('products').update({ total_reservations: supabaseAdmin.rpc as never }).eq('id', salesFlow.productoId);
+          const { data: p } = await supabaseAdmin.from('products').select('total_reservations').eq('id', salesFlow.productoId).single();
+          await supabaseAdmin.from('products').update({ total_reservations: ((p?.total_reservations as number | null) ?? 0) + 1 }).eq('id', salesFlow.productoId);
+          await liberarStock(salesFlow.productoId, true);
+          await metaProvider.sendInteractiveButtons(
+            from,
+            '✅ *Pago confirmado*\n¿Querés que un pasador te lo lleve? 🚶',
+            [
+              { id: `pasador_si_${salesFlow.compraId}`, title: 'Sí, con pasador' },
+              { id: `pasador_no_${salesFlow.compraId}`, title: 'No, lo retiro' },
+            ]
+          ).catch(() => {});
+          return { step: 'eligiendo_pasador', compraId: salesFlow.compraId, productoId: salesFlow.productoId };
+        }
       }
-      return { ...salesFlow, shownProductIds: cheaperProducts.length > 0 ? cheaperProducts.map(p => p.id) : products.map(p => p.id) };
-    }
-
-    if (isDoubtBetter(trimmedText)) {
-      await metaProvider.sendMessage(from, MSG.DOUBT_BETTER);
-      const products = await searchProducts(salesFlow.lastQuery, merchantId);
-      const betterProducts = products.filter(p => parseFloat(p.price as any) > salesFlow.topProductPrice);
-
-      if (betterProducts.length === 0) {
-        await metaProvider.sendMessage(from, 'No encontré nada de gama alta, pero estas son las mejores opciones 👇');
-        await showProductOptions(from, products, metaProvider);
-      } else {
-        await showProductOptions(from, betterProducts, metaProvider);
-      }
-      return { ...salesFlow, shownProductIds: betterProducts.length > 0 ? betterProducts.map(p => p.id) : products.map(p => p.id) };
-    }
-
-    if (isNegation(trimmedText)) {
-      await metaProvider.sendMessage(from, MSG.NO_FOLLOWUP_RESPONSE);
-      return null;
-    }
-
-    const newProducts = await searchProducts(text, merchantId);
-    if (newProducts.length === 0) {
       await metaProvider.sendInteractiveButtons(
         from,
-        MSG.NO_RESULTS,
+        '⏳ Tu pago aún no fue acreditado. Esperá unos minutos e intentá de nuevo.',
         [
-          { id: 'menu_search', title: MSG.BTN_SEARCH },
-          { id: 'menu_talk', title: MSG.BTN_TALK },
+          { id: `paid_${salesFlow.compraId}`, title: 'Ya pagué ✅' },
+          { id: `cancel_orden_${salesFlow.compraId}`, title: 'Cancelar orden' },
         ]
-      );
-      return null;
+      ).catch(() => {});
+      return salesFlow;
     }
-    await showProductOptions(from, newProducts, metaProvider);
-    return {
-      step: 'opciones',
-      lastQuery: text,
-      shownProductIds: newProducts.map(p => p.id),
-      topProductId: newProducts[0].id,
-      topProductName: newProducts[0].name,
-      topProductPrice: parseFloat(newProducts[0].price as any),
-      followUpScheduled: false,
-    };
+    return salesFlow;
   }
 
-  return null;
+  if (salesFlow.step === 'capturando_peso_pasador') {
+    if (text.startsWith('LOCATION:')) {
+      await metaProvider.sendMessage(from, 'Primero decime el peso del bulto en kg 📦').catch(() => {});
+      return salesFlow;
+    }
+    const peso = parseFloat(text.replace(',', '.'));
+    if (isNaN(peso) || peso <= 0) {
+      await metaProvider.sendMessage(from, 'Por favor, ingresá el peso en kg (ej: 3.5) 📦').catch(() => {});
+      return salesFlow;
+    }
+    await metaProvider.sendLocationRequest(from, '📍 Ahora compartí tu ubicación de entrega').catch(() => {});
+    return { step: 'capturando_dir_pasador', compraId: salesFlow.compraId, pesoKg: peso };
+  }
+
+  if (salesFlow.step === 'capturando_dir_pasador') {
+    if (text.startsWith('LOCATION:')) {
+      const [latStr, lngStr] = text.replace('LOCATION:', '').split(',');
+      const lat = parseFloat(latStr);
+      const lng = parseFloat(lngStr);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        await iniciarEntregaPasador(from, salesFlow.compraId, salesFlow.pesoKg, lat, lng, merchantId, metaProvider);
+        return null;
+      }
+    }
+    await metaProvider.sendLocationRequest(from, '📍 Compartí tu ubicación de entrega').catch(() => {});
+    return salesFlow;
+  }
+
+  return salesFlow;
 }
 
 export async function handleSalesInteractive(
@@ -307,60 +284,164 @@ export async function handleSalesInteractive(
   salesFlow: SalesFlowState | null,
   metaProvider: MetaCloudProvider
 ): Promise<SalesFlowState | null> {
-  const { type, productId, categoryName } = parseReserveButtonId(replyId);
+  const { type, productId, compraId, categoryName } = parseReserveButtonId(replyId);
 
   if (type === 'category') {
-    const catName = categoryName || '';
-    await showCategoryProducts(from, catName, merchantId, metaProvider);
-    return {
-      step: 'opciones',
-      selectedCategory: catName,
-      lastQuery: catName,
-      shownProductIds: [],
-      topProductId: '',
-      topProductName: '',
-      topProductPrice: 0,
-      followUpScheduled: false,
-    };
+    const cat = categoryName ?? '';
+    await showProductos(from, cat, 0, merchantId, metaProvider);
+    return { step: 'viendo_productos', categoria: cat, offset: 0 };
   }
 
-  if (type === 'reserve') {
+  if (type === 'cat_next') {
+    if (!salesFlow || salesFlow.step !== 'viendo_productos') return salesFlow;
+    const nextOffset = salesFlow.offset + 3;
+    await showProductos(from, salesFlow.categoria, nextOffset, merchantId, metaProvider);
+    return { step: 'viendo_productos', categoria: salesFlow.categoria, offset: nextOffset };
+  }
+
+  if (type === 'buy') {
     if (!productId) return salesFlow;
 
-    const { data: product } = await supabaseAdmin.from('products').select('*').eq('id', productId).single();
-    const productName = product?.name || 'Producto';
+    const { data: product } = await supabaseAdmin
+      .from('products')
+      .select('name, precio_ars, precio_bob, stock_actual')
+      .eq('id', productId)
+      .single();
 
-    const code = generateReservationCode();
-    await createReservation({ conversationId, productId, notes: code });
-    await metaProvider.sendMessage(from, MSG.RESERVE_CONFIRM(productName, code));
-    await scheduleFollowUp(conversationId, productId, productName);
+    if (!product || (product.stock_actual as number | null ?? 0) <= 0) {
+      await metaProvider.sendMessage(from, 'Lo sentimos, ese producto ya no tiene stock 😔').catch(() => {});
+      return salesFlow;
+    }
+
+    const puedeComprar = await reducirStock(productId);
+    if (!puedeComprar) {
+      await metaProvider.sendMessage(from, 'Lo sentimos, ese producto ya no tiene stock 😔').catch(() => {});
+      return salesFlow;
+    }
+
+    const codigo = generarCodigoSeguridad();
+    const precioArs = (product.precio_ars as number | null) ?? 0;
+
+    const { link, mpPaymentId } = await generarLinkPago({
+      compraId: 'temp',
+      codigo,
+      titulo: product.name as string,
+      precioArs,
+    });
+
+    let compra;
+    try {
+      compra = await crearCompra({
+        productoId: productId,
+        conversationId,
+        waUserId: from,
+        codigoSeguridad: codigo,
+        precioArs,
+        paymentLink: link,
+        mpPaymentId,
+      });
+    } catch (err) {
+      console.error('[buy] crearCompra failed:', err);
+      await liberarStock(productId, false);
+      await metaProvider.sendMessage(from, MSG.GENERIC_ERROR).catch(() => {});
+      return salesFlow;
+    }
+
+    await metaProvider.sendInteractiveButtons(
+      from,
+      `🛒 *Pedido #${codigo}*\n📦 ${product.name}\n💵 $${precioArs} ARS\n\n💳 Pagá aquí: ${link}\n\n⏱️ Tenés 30 min para completar el pago.`,
+      [
+        { id: `paid_${compra.id}`, title: 'Ya pagué ✅' },
+        { id: `cancel_orden_${compra.id}`, title: 'Cancelar orden' },
+      ]
+    ).catch(() => {});
+
+    return { step: 'esperando_pago', compraId: compra.id, productoId: productId };
+  }
+
+  if (type === 'paid') {
+    if (!compraId) return salesFlow;
+
+    const { data: compra } = await supabaseAdmin
+      .from('compras')
+      .select('mp_payment_id, producto_id, estado')
+      .eq('id', compraId)
+      .single();
+
+    if (!compra || compra.estado !== 'pendiente_pago') return salesFlow;
+
+    const productoId = (compra.producto_id as string | null) ?? '';
+
+    if (compra.mp_payment_id) {
+      const status = await verificarPago(compra.mp_payment_id as string);
+      if (status === 'approved') {
+        await registrarEvento(compraId, 'approved', {}).catch(() => {});
+        await supabaseAdmin.from('compras').update({ estado: 'pagado', updated_at: new Date().toISOString() }).eq('id', compraId);
+        if (productoId) {
+          const { data: p } = await supabaseAdmin.from('products').select('total_reservations').eq('id', productoId).single();
+          await supabaseAdmin.from('products').update({ total_reservations: ((p?.total_reservations as number | null) ?? 0) + 1 }).eq('id', productoId);
+          await liberarStock(productoId, true);
+        }
+        await metaProvider.sendInteractiveButtons(
+          from,
+          '✅ *Pago confirmado*\n¿Querés que un pasador te lo lleve? 🚶',
+          [
+            { id: `pasador_si_${compraId}`, title: 'Sí, con pasador' },
+            { id: `pasador_no_${compraId}`, title: 'No, lo retiro' },
+          ]
+        ).catch(() => {});
+        const currentFlow = salesFlow as ({ productoId?: string } & SalesFlowState) | null;
+        return { step: 'eligiendo_pasador', compraId, productoId: currentFlow?.step === 'esperando_pago' ? (currentFlow as { compraId: string; productoId: string }).productoId : productoId };
+      }
+    }
+
+    await metaProvider.sendInteractiveButtons(
+      from,
+      '⏳ Tu pago aún no fue acreditado. Esperá unos minutos.',
+      [
+        { id: `paid_${compraId}`, title: 'Ya pagué ✅' },
+        { id: `cancel_orden_${compraId}`, title: 'Cancelar orden' },
+      ]
+    ).catch(() => {});
+
+    return salesFlow;
+  }
+
+  if (type === 'pasador_si') {
+    if (!compraId) return salesFlow;
+    await metaProvider.sendMessage(from, '⚖️ ¿Cuánto pesa el bulto aproximadamente? (en kg)\nEj: 2.5').catch(() => {});
+    return { step: 'capturando_peso_pasador', compraId };
+  }
+
+  if (type === 'pasador_no') {
+    if (!compraId) return salesFlow;
+    await supabaseAdmin.from('compras').update({ estado: 'listo_retirar', updated_at: new Date().toISOString() }).eq('id', compraId);
+
+    const { data: compra } = await supabaseAdmin.from('compras').select('codigo_seguridad, producto_id').eq('id', compraId).single();
+    let merchantInfo = '';
+    if (merchantId) {
+      const { data: m } = await supabaseAdmin.from('merchants').select('name, address, horario').eq('id', merchantId).single();
+      if (m) merchantInfo = `\n🏪 ${m.name}${m.address ? `\n📍 ${m.address}` : ''}${m.horario ? `\n🕐 ${m.horario}` : ''}`;
+    }
+
+    await metaProvider.sendMessage(
+      from,
+      `✅ *Pedido listo para retirar*${merchantInfo}\n\n🔐 Código: *${compra?.codigo_seguridad ?? ''}*\nPresentá este código al retirar.`
+    ).catch(() => {});
+
     return null;
   }
 
-  if (type === 'cheaper') {
-    await metaProvider.sendMessage(from, MSG.DOUBT_CHEAPER);
-    if (!salesFlow) return salesFlow;
-    const products = await searchProducts(salesFlow.lastQuery, merchantId);
-    const cheaperProducts = products.filter(p => parseFloat(p.price as any) < salesFlow.topProductPrice);
-
-    if (cheaperProducts.length === 0) {
-      await metaProvider.sendMessage(from, 'No encontré nada más barato, pero estas son las mejores opciones 👇');
-      await showProductOptions(from, products, metaProvider);
-    } else {
-      await showProductOptions(from, cheaperProducts, metaProvider);
-    }
-    return { ...salesFlow, shownProductIds: cheaperProducts.length > 0 ? cheaperProducts.map(p => p.id) : products.map(p => p.id) };
-  }
-
-  if (type === 'more') {
-    if (!salesFlow) return salesFlow;
-    const products = await searchProducts(salesFlow.lastQuery, merchantId);
-    await showProductOptions(from, products, metaProvider);
+  // Legacy reserve flow (backwards compat)
+  if (type === 'reserve') {
+    if (!productId) return salesFlow;
+    const { data: product } = await supabaseAdmin.from('products').select('name, precio_ars').eq('id', productId).single();
+    await metaProvider.sendMessage(from, `Para comprar *${product?.name ?? ''}* escribí "comprar" o usá el botón 🛒`).catch(() => {});
     return salesFlow;
   }
 
   if (type === 'no_thanks') {
-    await metaProvider.sendMessage(from, MSG.NO_FOLLOWUP_RESPONSE);
+    await metaProvider.sendMessage(from, MSG.NO_FOLLOWUP_RESPONSE).catch(() => {});
     return null;
   }
 

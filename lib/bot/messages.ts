@@ -2,14 +2,19 @@ export const truncate = (str: string, max: number) =>
   str.length > max ? str.substring(0, max - 3) + '...' : str;
 
 export const parseReserveButtonId = (id: string) => {
-  if (id.startsWith('sales_reserve_')) return { type: 'reserve', productId: id.replace('sales_reserve_', '') };
-  if (id.startsWith('followup_reserve_')) return { type: 'reserve', productId: id.replace('followup_reserve_', '') };
-  if (id.startsWith('sales_cat_')) return { type: 'category', categoryName: id.replace('sales_cat_', '') };
-  if (id === 'sales_cheaper') return { type: 'cheaper' };
-  if (id === 'sales_more') return { type: 'more'};
-  if (id === 'sales_no_thanks' || id === 'followup_no_thanks') return { type: 'no_thanks' };
-  if (id.startsWith('reserve_')) return { type: 'reserve', productId: id.replace('reserve_', '') };
-  return { type: 'unknown' };
+  if (id.startsWith('buy_')) return { type: 'buy', productId: id.replace('buy_', ''), compraId: undefined, categoryName: undefined };
+  if (id === 'cat_next') return { type: 'cat_next', productId: undefined, compraId: undefined, categoryName: undefined };
+  if (id.startsWith('paid_')) return { type: 'paid', compraId: id.replace('paid_', ''), productId: undefined, categoryName: undefined };
+  if (id.startsWith('pasador_si_')) return { type: 'pasador_si', compraId: id.replace('pasador_si_', ''), productId: undefined, categoryName: undefined };
+  if (id.startsWith('pasador_no_')) return { type: 'pasador_no', compraId: id.replace('pasador_no_', ''), productId: undefined, categoryName: undefined };
+  if (id.startsWith('sales_cat_')) return { type: 'category', categoryName: id.replace('sales_cat_', ''), productId: undefined, compraId: undefined };
+  if (id.startsWith('sales_reserve_')) return { type: 'reserve', productId: id.replace('sales_reserve_', ''), compraId: undefined, categoryName: undefined };
+  if (id.startsWith('followup_reserve_')) return { type: 'reserve', productId: id.replace('followup_reserve_', ''), compraId: undefined, categoryName: undefined };
+  if (id === 'sales_cheaper') return { type: 'cheaper', productId: undefined, compraId: undefined, categoryName: undefined };
+  if (id === 'sales_more') return { type: 'more', productId: undefined, compraId: undefined, categoryName: undefined };
+  if (id === 'sales_no_thanks' || id === 'followup_no_thanks') return { type: 'no_thanks', productId: undefined, compraId: undefined, categoryName: undefined };
+  if (id.startsWith('reserve_')) return { type: 'reserve', productId: id.replace('reserve_', ''), compraId: undefined, categoryName: undefined };
+  return { type: 'unknown', productId: undefined, compraId: undefined, categoryName: undefined };
 };
 
 export const isGreeting = (text: string) => {

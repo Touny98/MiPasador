@@ -103,6 +103,76 @@ export type Database = {
           },
         ]
       }
+      compras: {
+        Row: {
+          codigo_seguridad: string
+          conversation_id: string | null
+          created_at: string | null
+          estado: string | null
+          id: string
+          mp_payment_id: string | null
+          payment_link: string | null
+          precio_ars: number
+          producto_id: string | null
+          solicito_pasador: boolean | null
+          updated_at: string | null
+          viaje_id: number | null
+          wa_user_id: string
+        }
+        Insert: {
+          codigo_seguridad: string
+          conversation_id?: string | null
+          created_at?: string | null
+          estado?: string | null
+          id?: string
+          mp_payment_id?: string | null
+          payment_link?: string | null
+          precio_ars: number
+          producto_id?: string | null
+          solicito_pasador?: boolean | null
+          updated_at?: string | null
+          viaje_id?: number | null
+          wa_user_id: string
+        }
+        Update: {
+          codigo_seguridad?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          estado?: string | null
+          id?: string
+          mp_payment_id?: string | null
+          payment_link?: string | null
+          precio_ars?: number
+          producto_id?: string | null
+          solicito_pasador?: boolean | null
+          updated_at?: string | null
+          viaje_id?: number | null
+          wa_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compras_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compras_viaje_id_fkey"
+            columns: ["viaje_id"]
+            isOneToOne: false
+            referencedRelation: "viajes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           context: Json | null
@@ -283,6 +353,7 @@ export type Database = {
           address: string | null
           created_at: string | null
           description: string | null
+          horario: string | null
           id: string
           is_active: boolean | null
           name: string
@@ -294,6 +365,7 @@ export type Database = {
           address?: string | null
           created_at?: string | null
           description?: string | null
+          horario?: string | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -305,6 +377,7 @@ export type Database = {
           address?: string | null
           created_at?: string | null
           description?: string | null
+          horario?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
@@ -393,6 +466,41 @@ export type Database = {
           wa_user_id?: string
         }
         Relationships: []
+      }
+      payment_events: {
+        Row: {
+          compra_id: string | null
+          created_at: string | null
+          id: number
+          mp_payment_id: string | null
+          raw_payload: Json | null
+          status: string | null
+        }
+        Insert: {
+          compra_id?: string | null
+          created_at?: string | null
+          id?: number
+          mp_payment_id?: string | null
+          raw_payload?: Json | null
+          status?: string | null
+        }
+        Update: {
+          compra_id?: string | null
+          created_at?: string | null
+          id?: number
+          mp_payment_id?: string | null
+          raw_payload?: Json | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "compras"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       plantillas_seguimiento: {
         Row: {
@@ -517,9 +625,13 @@ export type Database = {
           merchant_id: string | null
           name: string
           normalized_name: string | null
+          precio_ars: number | null
+          precio_bob: number | null
           price: number | null
           sku: string | null
           stock: number | null
+          stock_actual: number | null
+          stock_reservado: number | null
           total_reservations: number | null
           updated_at: string | null
         }
@@ -534,9 +646,13 @@ export type Database = {
           merchant_id?: string | null
           name: string
           normalized_name?: string | null
+          precio_ars?: number | null
+          precio_bob?: number | null
           price?: number | null
           sku?: string | null
           stock?: number | null
+          stock_actual?: number | null
+          stock_reservado?: number | null
           total_reservations?: number | null
           updated_at?: string | null
         }
@@ -551,9 +667,13 @@ export type Database = {
           merchant_id?: string | null
           name?: string
           normalized_name?: string | null
+          precio_ars?: number | null
+          precio_bob?: number | null
           price?: number | null
           sku?: string | null
           stock?: number | null
+          stock_actual?: number | null
+          stock_reservado?: number | null
           total_reservations?: number | null
           updated_at?: string | null
         }
@@ -775,6 +895,7 @@ export type Database = {
       }
       viajes: {
         Row: {
+          codigo_seguridad: string | null
           comision_ars: number | null
           completado_at: string | null
           created_at: string | null
@@ -791,6 +912,7 @@ export type Database = {
           usuario_wa_id: string | null
         }
         Insert: {
+          codigo_seguridad?: string | null
           comision_ars?: number | null
           completado_at?: string | null
           created_at?: string | null
@@ -807,6 +929,7 @@ export type Database = {
           usuario_wa_id?: string | null
         }
         Update: {
+          codigo_seguridad?: string | null
           comision_ars?: number | null
           completado_at?: string | null
           created_at?: string | null
