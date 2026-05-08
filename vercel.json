@@ -2,19 +2,19 @@
   "crons": [
     {
       "path": "/api/cron/refresh-rates",
-      "schedule": "0 0 * * *"
+      "schedule": "30 9 * * *"
     },
     {
       "path": "/api/cron/follow-up",
-      "schedule": "30 8 * * *"
+      "schedule": "30 9 * * *"
     },
     {
       "path": "/api/cron/expiracion-pagos",
-      "schedule": "*/5 * * * *"
+      "schedule": "30 9 * * *"
     },
     {
       "path": "/api/cron/verificar-pagos",
-      "schedule": "*/2 * * * *"
+      "schedule": "30 9 * * *"
     }
   ]
 }
