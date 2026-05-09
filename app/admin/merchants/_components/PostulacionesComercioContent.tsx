@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { deletePostulacionComercio } from '../actions';
 import { supabase } from '@/lib/utils/supabase/client';
 import { FichaComercioModal, type PostulacionComercio } from './FichaComercioModal';
 
@@ -40,6 +41,16 @@ export function PostulacionesComercioContent() {
     if (error) console.error('Error fetching postulaciones comercio:', error);
     setPostulaciones((data as PostulacionComercio[]) || []);
     setLoading(false);
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('¿Seguro quieres eliminar esta postulación?')) return;
+    try {
+      await deletePostulacionComercio(id);
+      fetchPostulaciones();
+    } catch (err) {
+      alert('Error al eliminar');
+    }
   }
 
   if (loading) return <div className="py-8 text-sm text-gray-400">Cargando...</div>;
@@ -94,12 +105,20 @@ export function PostulacionesComercioContent() {
                     {p.created_at ? new Date(p.created_at).toLocaleDateString('es-AR') : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => setSelected(p)}
-                      className="px-3 py-1 text-xs bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                    >
-                      Ver ficha
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelected(p)}
+                        className="px-3 py-1 text-xs bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                      >
+                        Ver ficha
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        className="px-3 py-1 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

@@ -14,10 +14,11 @@ export async function createMerchant(formData: FormData) {
   const name = formData.get('name') as string;
   const address = formData.get('address') as string;
   const phone_number = formData.get('phone_number') as string;
+  const titular = formData.get('titular') as string;
 
   const { error } = await supabaseAdmin
     .from('merchants')
-    .insert([{ name, address, phone_number }]);
+    .insert([{ name, address, phone_number, titular }]);
 
   if (error) {
     console.error('Error creating merchant:', error);
@@ -29,10 +30,11 @@ export async function updateMerchant(id: string, formData: FormData) {
   const name = formData.get('name') as string;
   const address = formData.get('address') as string;
   const phone_number = formData.get('phone_number') as string;
+  const titular = formData.get('titular') as string;
 
   const { error } = await supabaseAdmin
     .from('merchants')
-    .update({ name, address, phone_number })
+    .update({ name, address, phone_number, titular })
     .eq('id', id);
 
   if (error) {
@@ -56,7 +58,7 @@ export async function deleteMerchant(id: string) {
 export async function acceptPostulacionComercio(id: string) {
   const { data: post, error: fetchError } = await supabaseAdmin
     .from('postulaciones_comercio')
-    .select('nombre_negocio, direccion, wa_user_id')
+    .select('nombre_negocio, direccion, wa_user_id, nombre_completo')
     .eq('id', id)
     .single();
 
@@ -71,6 +73,7 @@ export async function acceptPostulacionComercio(id: string) {
       name: post.nombre_negocio || 'Sin nombre',
       address: post.direccion,
       phone_number: post.wa_user_id,
+      titular: post.nombre_completo,
     });
 
   if (merchantError) {
@@ -126,5 +129,17 @@ export async function requestModificationComercio(
     const camposList = campos.map(c => `• ${c}`).join('\n');
     const msg = `🔧 Tu postulación de comercio requiere algunas correcciones.\n\nCampos a actualizar:\n${camposList}\n\n${observacion}\n\nRespondé con los datos actualizados cuando estés listo.`;
     await getMeta().sendMessage(waUserId, msg).catch(console.error);
+  }
+}
+
+export async function deletePostulacionComercio(id: string) {
+  const { error } = await supabaseAdmin
+    .from('postulaciones_comercio')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting postulacion:', error);
+    throw error;
   }
 }

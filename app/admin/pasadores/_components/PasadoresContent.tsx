@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { fetchPasadores, togglePasadorActivo, deletePasador } from '../actions';
+import { fetchPasadores, togglePasadorActivo, deletePasador, createPasador } from '../actions';
 
 export function PasadoresContent() {
   const [pasadores, setPasadores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     loadPasadores();
@@ -50,14 +52,22 @@ export function PasadoresContent() {
     }
   }
 
-  const filteredPasadores = pasadores.filter((p) => {
-    if (!search) return true;
-    const searchLower = search.toLowerCase();
-    return (
-      (p.nombre_completo?.toLowerCase().includes(searchLower) ?? false) ||
-      (p.dni?.toLowerCase().includes(searchLower) ?? false)
     );
   });
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    const fd = new FormData(e.currentTarget as HTMLFormElement);
+    const res = await createPasador(fd);
+    if (res.success) {
+      setShowCreate(false);
+      loadPasadores();
+    } else {
+      alert(res.error);
+    }
+    setCreating(false);
+  }
 
   if (loading) {
     return <div className="p-6">Cargando...</div>;
@@ -65,15 +75,54 @@ export function PasadoresContent() {
 
   return (
     <div>
-      <div className="mb-4">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre o DNI..."
-          className="w-full p-2 border border-gray-300 rounded"
-        />
+      <div className="mb-6 flex justify-between items-center">
+        <div className="flex-1 max-w-md">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre o DNI..."
+            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 ml-4"
+        >
+          {showCreate ? '✕ Cancelar' : '➕ Cargar Pasador Manualmente'}
+        </button>
       </div>
+
+      {showCreate && (
+        <div className="mb-6 p-6 bg-white border border-blue-100 rounded-xl shadow-sm">
+          <h2 className="text-lg font-semibold mb-4">Cargar Nuevo Pasador</h2>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-700">Nombre Completo</label>
+                <input type="text" name="nombre_completo" required className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-700">DNI</label>
+                <input type="text" name="dni" required className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-700">WhatsApp (ID)</label>
+                <input type="text" name="wa_user_id" required placeholder="Ej: 54911..." className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={creating}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {creating ? 'Guardando...' : 'Guardar Pasador'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <table className="min-w-full bg-white border border-gray-200">
         <thead>

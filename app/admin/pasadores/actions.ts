@@ -3,6 +3,36 @@
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { revalidatePath } from 'next/cache';
 
+export async function createPasador(formData: FormData) {
+  const nombre_completo = formData.get('nombre_completo') as string;
+  const dni = formData.get('dni') as string;
+  const wa_user_id = formData.get('wa_user_id') as string;
+
+  try {
+    const { error } = await supabaseAdmin
+      .from('pasadores')
+      .insert([{ 
+        nombre_completo, 
+        dni, 
+        wa_user_id,
+        activo: false,
+        estado: 'activo',
+        cantidad_viajes_completados: 0
+      }]);
+
+    if (error) throw error;
+
+    // Add pasador role
+    await supabaseAdmin.from('user_roles').upsert({ wa_user_id, role: 'pasador' });
+
+    revalidatePath('/admin/pasadores');
+    return { success: true };
+  } catch (error) {
+    console.error('Error creating pasador:', error);
+    return { success: false, error: 'No se pudo crear el pasador. Revisa que el WhatsApp no esté duplicado.' };
+  }
+}
+
 export async function togglePasadorActivo(id: number, currentActivo: boolean) {
   try {
     const { error } = await supabaseAdmin
@@ -96,7 +126,7 @@ export async function fetchViajesAdmin(filters: { estado?: string; fechaDesde?: 
 
 export async function deletePostulacion(id: string) {
   try {
-    const { error } = await supabaseAdmin.from('postulaciones_comercio').delete().eq('id', id);
+    const { error } = await supabaseAdmin.from('postulaciones').delete().eq('id', id);
     if (error) throw error;
     revalidatePath('/admin/pasadores');
     return { success: true };
