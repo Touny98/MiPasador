@@ -416,7 +416,7 @@ export async function manejarComando(waUserId: string, comando: string): Promise
         if (product?.merchant_id) {
            const { data: merchant } = await supabaseAdmin.from('merchants').select('wa_user_id').eq('id', product.merchant_id).maybeSingle();
            if (merchant?.wa_user_id) {
-              await metaProvider.sendMessage(merchant.wa_user_id, `🚚 ¡Tu pedido ya tiene pasador asignado!\n${pasador.nombre_completo} está en camino a retirarlo.`).catch(() => {});
+              await metaProvider.sendMessage(merchant.wa_user_id, `🚚 ¡Tu pedido ya tiene pasador asignado!\nUn pasador está en camino a retirarlo.`).catch(() => {});
            }
         }
       }
