@@ -53,7 +53,8 @@
       "Bash(npm ci *)",
       "Bash(Get-Item *)",
       "WebFetch(domain:mi-pasador.vercel.app)",
-      "mcp__claude_ai_Supabase__generate_typescript_types"
+      "mcp__claude_ai_Supabase__generate_typescript_types",
+      "Bash(xargs grep -l \"merchants\\\\|Merchants\")"
     ]
   }
 }
