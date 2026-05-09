@@ -104,7 +104,7 @@ export function PasadoresContent() {
                     onChange={() => handleToggleActivo(p.id, p.activo)}
                     className="sr-only peer"
                   />
-                  <span className="w-11 h-6 bg-gray-200 rounded-full peer">
+                  <span className="w-11 h-6 bg-red-500 rounded-full peer peer-checked:bg-green-500 transition-colors">
                     <span
                       className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white ${
                         p.activo ? 'translate-x-5' : 'translate-x-0'

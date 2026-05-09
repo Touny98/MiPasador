@@ -131,9 +131,23 @@ export async function POST(request: Request) {
         const msg = `🔧 Tu postulación requiere algunas correcciones.\n\nCampos a actualizar:\n${camposList}\n\n${observacion}\n\nRespondé con los datos actualizados cuando estés listo.`;
         await meta.sendMessage(post.wa_user_id, msg).catch(console.error);
       }
+    } else if (action === 'eliminar') {
+      const { error: deleteError } = await supabaseAdmin
+        .from('postulaciones')
+        .delete()
+        .eq('id', id);
+
+      if (deleteError) {
+        return NextResponse.json(
+          { error: 'Error al eliminar la postulación' },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({ success: true });
     } else {
       return NextResponse.json(
-        { error: 'Invalid action. Use "aceptar", "denegar", or "correccion"' },
+        { error: 'Invalid action. Use "aceptar", "denegar", "correccion" or "eliminar"' },
         { status: 400 }
       );
     }

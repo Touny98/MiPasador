@@ -52,6 +52,22 @@ export function PostulacionesContent() {
     await fetchPostulaciones();
   }
 
+  async function handleDelete(id: number) {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta postulación?')) return;
+    try {
+      const res = await fetch('/api/admin/postulaciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'eliminar' }),
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      await fetchPostulaciones();
+    } catch (err) {
+      console.error('Error eliminando postulacion:', err);
+      alert('No se pudo eliminar la postulación.');
+    }
+  }
+
   if (loading) return <div className="py-8 text-sm text-gray-400">Cargando...</div>;
 
   return (
@@ -102,12 +118,20 @@ export function PostulacionesContent() {
                     {p.created_at ? new Date(p.created_at).toLocaleDateString('es-AR') : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => setSelected(p)}
-                      className="px-3 py-1 text-xs bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                    >
-                      Ver ficha
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelected(p)}
+                        className="px-3 py-1 text-xs bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                      >
+                        Ver ficha
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        className="px-3 py-1 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

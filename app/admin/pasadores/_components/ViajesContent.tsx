@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { useState, useEffect } from 'react';
+import { fetchViajesAdmin } from '../actions';
 
 export function ViajesContent() {
   const [viajes, setViajes] = useState<any[]>([]);
@@ -19,11 +20,7 @@ export function ViajesContent() {
   async function fetchViajes() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/viajes?estado=${filters.estado}&fechaDesde=${filters.fechaDesde}&fechaHasta=${filters.fechaHasta}`);
-      if (!res.ok) {
-        throw new Error('Failed to fetch viajes');
-      }
-      const data = await res.json();
+      const data = await fetchViajesAdmin(filters);
 
       const processed = (data || []).map((v: any) => ({
         id: v.id,
@@ -36,7 +33,7 @@ export function ViajesContent() {
         completado: v.completado_at ? new Date(v.completado_at).toLocaleString() : '---',
         rating:
           v.ratings && (v.ratings as unknown as any[]).length > 0
-            ? (v.ratings as unknown as any[])[0]?.puntuacion
+            ? (v.ratings as unknown as any[])[0]?.score
             : null,
       }));
       setViajes(processed);

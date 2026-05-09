@@ -5,9 +5,8 @@ export async function GET() {
   try {
     // 1. Get general statistics: distribution of stars
     const { data: starDistribution, error: starError } = await supabaseAdmin
-      .from('viajes')
-      .select('estrellas')
-      .not('estrellas', 'is', null);
+      .from('ratings')
+      .select('score');
 
     if (starError) throw starError;
 
@@ -16,8 +15,8 @@ export async function GET() {
     } as Record<string, number>;
 
     starDistribution?.forEach((v: any) => {
-      if (v.estrellas >= 1 && v.estrellas <= 5) {
-        distribution[v.estrellas.toString()]++;
+      if (v.score >= 1 && v.score <= 5) {
+        distribution[v.score.toString()]++;
       }
     });
 

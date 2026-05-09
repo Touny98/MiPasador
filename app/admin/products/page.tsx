@@ -88,18 +88,6 @@ export default function ProductsPage() {
       const formData = new FormData(e.currentTarget as HTMLFormElement);
       await updateProduct(id, formData);
       setEditingId(null);
-      // Reset form
-      setFormData({
-        merchant_id: '',
-        name: '',
-        description: '',
-        sku: '',
-        category: '',
-        subcategory: '',
-        stock: '',
-        stock_actual: '',
-        precio_ars: '',
-      });
       await fetchProducts();
     } catch (err) {
       // Error already logged in action
@@ -182,17 +170,7 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">SKU</label>
-              <input
-                type="text"
-                name="sku"
-                value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Categoría</label>
               <input
@@ -215,17 +193,7 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Stock (legacy)</label>
-              <input
-                type="number"
-                name="stock"
-                value={formData.stock}
-                onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Stock disponible</label>
               <input
@@ -296,62 +264,53 @@ export default function ProductsPage() {
                 <tr key={product.id} className="hover:bg-gray-50">
                   {editingId === product.id ? (
                     <>
-                      <td className="px-6 py-4">
-                        <select
-                          name="merchant_id"
-                          defaultValue={product.merchant_id}
-                          className="w-full px-3 py-2 border rounded"
-                        >
-                          <option value="">Selecciona un comercio</option>
-                          {merchants.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-6 py-4">
-                        <input
-                          type="text"
-                          name="name"
-                          defaultValue={product.name}
-                          className="w-full px-3 py-2 border rounded"
-                        />
-                      </td>
-                      <td className="px-6 py-4">
-                        <input
-                          type="number"
-                          step="0.01"
-                          name="precio_ars"
-                          defaultValue={product.precio_ars}
-                          className="w-full px-3 py-2 border rounded"
-                        />
-                      </td>
-                      <td className="px-6 py-4">
-                        <input
-                          type="number"
-                          name="stock"
-                          defaultValue={product.stock}
-                          className="w-full px-3 py-2 border rounded"
-                        />
-                      </td>
-                      <td className="px-6 py-4">
-                        {/* No moderation edit inline */}
-                      </td>
-                      <td className="px-6 py-4 space-x-2">
-                        <button
-                          onClick={(e) => handleUpdate(e, product.id)}
-                          className="bg-green-500 text-white px-3 py-1 rounded text-sm"
-                        >
-                          Actualizar
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="bg-gray-500 text-white px-3 py-1 rounded text-sm"
-                        >
-                          Cancelar
-                        </button>
-                      </td>
+                    <td colSpan={6} className="p-0">
+                      <form onSubmit={(e) => handleUpdate(e, product.id)} className="bg-white border-2 border-blue-200 rounded-xl p-6 m-2 shadow-sm">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                          <h3 className="text-lg font-bold text-gray-800">Editar Producto: {product.name}</h3>
+                          <button type="button" onClick={() => setEditingId(null)} className="text-gray-400 hover:text-gray-600">✕ Cerrar</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Nombre</label>
+                            <input type="text" name="name" defaultValue={product.name} required className="w-full px-3 py-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Comercio</label>
+                            <select name="merchant_id" defaultValue={product.merchant_id} className="w-full px-3 py-2 border rounded">
+                              <option value="">Selecciona un comercio</option>
+                              {merchants.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Precio ARS</label>
+                            <input type="number" step="0.01" name="precio_ars" defaultValue={product.precio_ars} required className="w-full px-3 py-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Stock disponible</label>
+                            <input type="number" name="stock_actual" defaultValue={product.stock_actual ?? product.stock} className="w-full px-3 py-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">SKU</label>
+                            <input type="text" name="sku" defaultValue={product.sku} className="w-full px-3 py-2 border rounded" />
+                          </div>
+                        </div>
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium mb-1">Imagen (dejar vacío para no cambiar la actual)</label>
+                          <input type="file" name="image_file" accept="image/*" className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium mb-1">Descripción</label>
+                          <textarea name="description" defaultValue={product.description} rows={2} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div className="flex justify-end gap-2 mt-4">
+                          <button type="button" onClick={() => setEditingId(null)} className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">Cancelar</button>
+                          <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700">Guardar Cambios</button>
+                        </div>
+                      </form>
+                    </td>
                     </>
                   ) : (
                     <>
