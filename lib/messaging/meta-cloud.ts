@@ -144,11 +144,6 @@ export class MetaCloudProvider {
     },
     buttons: { id: string; title: string }[]
   ): Promise<void> {
-    const placeholderUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/documentos/placeholder.png`
-      : null;
-    const img = opts.imageUrl || placeholderUrl;
-
     const lines: string[] = [`*${opts.nombre}*`];
     if (opts.precioBob) lines.push(`💲 Bs. ${opts.precioBob}`);
     if (opts.precioArs) lines.push(`💵 $${opts.precioArs} ARS`);
@@ -157,15 +152,28 @@ export class MetaCloudProvider {
     if (opts.stock != null) lines.push(`📦 Stock: ${opts.stock}`);
     const bodyText = lines.join('\n');
 
-    if (img) {
-      await this.sendImage(to, img).catch(() => {});
+    const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
+    const interactive: Record<string, unknown> = {
+      type: 'button',
+      body: { text: bodyText },
+      action: {
+        buttons: buttons.map((b) => ({
+          type: 'reply',
+          reply: { id: b.id, title: this.truncBtn(b.title) },
+        })),
+      },
+    };
+
+    // If there's an image, add it as the message header so it arrives together with the text
+    if (opts.imageUrl) {
+      interactive.header = { type: 'image', image: { link: opts.imageUrl } };
     }
 
-    await this.sendInteractiveButtons(
-      to,
-      bodyText,
-      buttons.map((b) => ({ id: b.id, title: this.truncBtn(b.title) }))
-    );
+    await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'interactive', interactive }),
+    });
   }
 
   async getMediaInfo(mediaId: string): Promise<{ url: string; mimeType: string }> {

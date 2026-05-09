@@ -65,24 +65,28 @@ export async function updateProduct(id: string, formData: FormData) {
   const sku = formData.get('sku') as string;
   const category = formData.get('category') as string;
   const subcategory = formData.get('subcategory') as string;
-  const stock = formData.get('stock') as string;
   const stock_actual = formData.get('stock_actual') as string;
   const precio_ars = formData.get('precio_ars') as string;
   const image_file = formData.get('image_file') as File | null;
 
-  const stockVal = parseInt(stock, 10) || 0;
+  // Parse stock_actual safely - keep existing value if field is empty
+  const stockActualVal = stock_actual.trim() !== '' ? parseInt(stock_actual, 10) : undefined;
 
-  const updatePayload: any = {
+  const updatePayload: Record<string, unknown> = {
     merchant_id,
     name,
     description,
     sku,
     category: category || null,
     subcategory: subcategory || null,
-    stock: stockVal,
-    stock_actual: stock_actual ? parseInt(stock_actual, 10) : stockVal,
     precio_ars: precio_ars ? parseFloat(precio_ars) : null,
   };
+
+  // Only update stock_actual if a value was explicitly provided
+  if (stockActualVal !== undefined && !isNaN(stockActualVal)) {
+    updatePayload.stock_actual = stockActualVal;
+    updatePayload.stock = stockActualVal;
+  }
 
   if (image_file && image_file.size > 0) {
     const ext = image_file.name.split('.').pop();
@@ -96,6 +100,8 @@ export async function updateProduct(id: string, formData: FormData) {
     if (!uploadError) {
       const { data: urlData } = supabaseAdmin.storage.from('productos').getPublicUrl(fileName);
       updatePayload.image_url = urlData.publicUrl;
+    } else {
+      console.error('Error uploading image:', uploadError);
     }
   }
 

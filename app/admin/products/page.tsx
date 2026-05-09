@@ -4,6 +4,7 @@ import { createProduct, deleteProduct, updateProduct, aprobarProducto, rechazarP
 import { CategoriesManager } from './_components/CategoriesManager';
 import { supabase } from '@/lib/utils/supabase/client';
 import { useState, useEffect } from 'react';
+import React from 'react';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -12,6 +13,8 @@ export default function ProductsPage() {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
+  const createFileRef = React.useRef<HTMLInputElement>(null);
+  const editFileRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     merchant_id: '',
     name: '',
@@ -67,23 +70,24 @@ export default function ProductsPage() {
     e.preventDefault();
     setCreating(true);
     try {
-      const formData = new FormData(e.currentTarget as HTMLFormElement);
-      await createProduct(formData);
-      // Reset form
-      setFormData({
-        merchant_id: '',
-        name: '',
-        description: '',
-        sku: '',
-        category: '',
-        subcategory: '',
-        stock: '',
-        stock_actual: '',
-        precio_ars: '',
-      });
+      const fd = new FormData();
+      fd.append('merchant_id', formData.merchant_id);
+      fd.append('name', formData.name);
+      fd.append('description', formData.description);
+      fd.append('sku', formData.sku);
+      fd.append('category', formData.category);
+      fd.append('subcategory', formData.subcategory);
+      fd.append('stock_actual', formData.stock_actual);
+      fd.append('precio_ars', formData.precio_ars);
+      const file = createFileRef.current?.files?.[0];
+      if (file) fd.append('image_file', file);
+      await createProduct(fd);
+      setFormData({ merchant_id: '', name: '', description: '', sku: '', category: '', subcategory: '', stock: '', stock_actual: '', precio_ars: '' });
+      if (createFileRef.current) createFileRef.current.value = '';
       await fetchProducts();
     } catch (err) {
-      // Error already logged in action
+      console.error('Error creating product:', err);
+      alert('Error al crear el producto. Revisá la consola.');
     } finally {
       setCreating(false);
     }
@@ -91,14 +95,25 @@ export default function ProductsPage() {
 
   const handleUpdate = async (e: React.FormEvent, id: string) => {
     e.preventDefault();
-    setEditingId(id);
     try {
-      const formData = new FormData(e.currentTarget as HTMLFormElement);
-      await updateProduct(id, formData);
+      const fd = new FormData();
+      fd.append('merchant_id', formData.merchant_id);
+      fd.append('name', formData.name);
+      fd.append('description', formData.description);
+      fd.append('sku', formData.sku);
+      fd.append('category', formData.category);
+      fd.append('subcategory', formData.subcategory);
+      fd.append('stock_actual', formData.stock_actual);
+      fd.append('precio_ars', formData.precio_ars);
+      const file = editFileRef.current?.files?.[0];
+      if (file) fd.append('image_file', file);
+      await updateProduct(id, fd);
       setEditingId(null);
+      if (editFileRef.current) editFileRef.current.value = '';
       await fetchProducts();
     } catch (err) {
-      // Error already logged in action
+      console.error('Error updating product:', err);
+      alert('Error al guardar los cambios.');
     }
   };
 
@@ -172,6 +187,7 @@ export default function ProductsPage() {
             <div>
               <label className="block text-sm font-medium mb-1">Imagen (opcional)</label>
               <input
+                ref={createFileRef}
                 type="file"
                 name="image_file"
                 accept="image/*"
@@ -360,7 +376,7 @@ export default function ProductsPage() {
                         </div>
                         <div className="mb-4">
                           <label className="block text-sm font-medium mb-1">Imagen (dejar vacío para no cambiar la actual)</label>
-                          <input type="file" name="image_file" accept="image/*" className="w-full px-3 py-2 border rounded" />
+                          <input ref={editFileRef} type="file" name="image_file" accept="image/*" className="w-full px-3 py-2 border rounded" />
                         </div>
                         <div className="mb-4">
                           <label className="block text-sm font-medium mb-1">Descripción</label>
