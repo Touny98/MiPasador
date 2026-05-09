@@ -18,7 +18,7 @@ export async function createMerchant(formData: FormData) {
 
   const { error } = await supabaseAdmin
     .from('merchants')
-    .insert([{ name, address, phone_number, titular }]);
+    .insert([{ name, address, phone_number, titular } as any]);
 
   if (error) {
     console.error('Error creating merchant:', error);
@@ -32,9 +32,9 @@ export async function updateMerchant(id: string, formData: FormData) {
   const phone_number = formData.get('phone_number') as string;
   const titular = formData.get('titular') as string;
 
-  const { error } = await supabaseAdmin
+  const { error } = await (supabaseAdmin
     .from('merchants')
-    .update({ name, address, phone_number, titular })
+    .update({ name, address, phone_number, titular } as any) as any)
     .eq('id', id);
 
   if (error) {
@@ -74,7 +74,7 @@ export async function acceptPostulacionComercio(id: string) {
       address: post.direccion,
       phone_number: post.wa_user_id,
       titular: post.nombre_completo,
-    });
+    } as any);
 
   if (merchantError) {
     console.error('Error creating merchant:', merchantError);
