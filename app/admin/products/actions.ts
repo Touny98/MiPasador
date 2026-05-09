@@ -31,6 +31,8 @@ export async function createProduct(formData: FormData) {
     if (!uploadError) {
       const { data: urlData } = supabaseAdmin.storage.from('productos').getPublicUrl(fileName);
       finalImageUrl = urlData.publicUrl;
+    } else {
+      console.error('DETALLE ERROR STORAGE:', uploadError);
     }
   }
 
@@ -49,6 +51,8 @@ export async function createProduct(formData: FormData) {
         precio_ars: precio_ars ? parseFloat(precio_ars) : null,
         currency: 'ARS',
         image_url: finalImageUrl,
+        moderation_status: 'approved', // Asegurar que sea visible
+        is_active: true
       }
     ]);
 
