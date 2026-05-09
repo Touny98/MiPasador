@@ -21,17 +21,42 @@ export async function togglePasadorActivo(id: number, currentActivo: boolean) {
 
 export async function deletePasador(id: number) {
   try {
+    // First, get the wa_user_id to remove the role later
+    const { data: pasador } = await supabaseAdmin
+      .from('pasadores')
+      .select('wa_user_id')
+      .eq('id', id)
+      .single();
+
+    // 1. Delete associated data that might block deletion (FK constraints)
+    await supabaseAdmin.from('comisiones').delete().eq('pasador_id', id);
+    await supabaseAdmin.from('sesiones_pasador').delete().eq('pasador_id', id);
+    await supabaseAdmin.from('ratings').delete().eq('pasador_id', id);
+    
+    // For viajes, we might want to keep the history but remove the link, 
+    // or just delete them if the user wants a full wipe. 
+    // Given the request is "Delete", we'll clear the link or delete. 
+    // Let's set pasador_id to null in viajes if possible, or delete if constrained.
+    await supabaseAdmin.from('viajes').update({ pasador_id: null }).eq('pasador_id', id);
+
+    // 2. Delete the pasador
     const { error } = await supabaseAdmin
       .from('pasadores')
       .delete()
       .eq('id', id);
 
     if (error) throw error;
+
+    // 3. Remove the pasador role if it exists
+    if (pasador?.wa_user_id) {
+      await supabaseAdmin.from('user_roles').delete().eq('wa_user_id', pasador.wa_user_id);
+    }
+
     revalidatePath('/admin/pasadores');
     return { success: true };
   } catch (error) {
     console.error('Error in deletePasador:', error);
-    return { success: false, error: 'No se pudo eliminar el pasador.' };
+    return { success: false, error: 'No se pudo eliminar el pasador por integridad de datos.' };
   }
 }
 
