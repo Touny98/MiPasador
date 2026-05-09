@@ -332,7 +332,8 @@ export async function asignarPasador(): Promise<{ id: number; nombre_completo: s
  * @returns Response string
  */
 export async function manejarComando(waUserId: string, comando: string): Promise<string> {
-  const upperComando = comando.trim().toUpperCase();
+  const args = comando.trim().split(' ');
+  const upperComando = args[0].toUpperCase();
 
   // First, verify that the waUserId corresponds to a pasador
   const { data: pasador, error: pasadorError } = await supabaseAdmin
@@ -444,49 +445,93 @@ export async function manejarComando(waUserId: string, comando: string): Promise
       return '✅ Viaje rechazado. Buscando otro pasador...';
     }
 
-    case 'LISTO': {
-      // Viaje a 'completado', pedir rating al usuario, calcular comisión.
-      // Find a viaje assigned to this pasador with estado='aceptado' (or maybe 'en camino'? we don't have that state)
-      // We'll look for viaje with estado='aceptado' for this pasador.
-      const { data: viaje, error: viajeError } = await supabaseAdmin
-        .from('viajes')
-        .select('id, estado, usuario_wa_id, precio_ars')
-        .eq('pasador_id', pasador.id)
-        .eq('estado', 'aceptado')
-        .single();
+    case 'RETIRAR': {
+      if (args.length < 2) return '❌ Uso: *RETIRAR {codigo}';
+      const codigo = args[1].toUpperCase();
+      const { data: compra } = await supabaseAdmin.from('compras')
+        .select('id, estado, wa_user_id, producto_id, viaje_id')
+        .eq('codigo_seguridad', codigo).maybeSingle();
+      if (!compra || !compra.viaje_id) return '❌ Código no encontrado o sin viaje asociado.';
+      
+      const { data: viaje } = await supabaseAdmin.from('viajes')
+        .select('pasador_id').eq('id', compra.viaje_id).maybeSingle();
+      if (viaje?.pasador_id !== pasador.id) return '❌ Ese pedido no está asignado a vos.';
+      
+      await supabaseAdmin.from('compras').update({ estado: 'retirado_por_pasador', updated_at: new Date().toISOString() }).eq('id', compra.id);
+      await metaProvider.sendMessage(compra.wa_user_id, `📦 Tu pasador retiró el paquete #${codigo}. En camino 🚶`).catch(() => {});
+      
+      if (compra.producto_id) {
+        const { data: product } = await supabaseAdmin.from('products').select('merchant_id').eq('id', compra.producto_id).maybeSingle();
+        if (product?.merchant_id) {
+          const { data: merchant } = await supabaseAdmin.from('merchants').select('wa_user_id').eq('id', product.merchant_id).maybeSingle();
+          if (merchant?.wa_user_id) {
+            await metaProvider.sendMessage(merchant.wa_user_id, `🚶 El pasador retiró el pedido #${codigo}.`).catch(() => {});
+          }
+        }
+      }
+      return '✅ Retiro confirmado. El comprador fue notificado.';
+    }
 
-      if (viajeError || !viaje) {
-        return '❌ No tienes un viaje aceptado para marcar como completado.';
+    case 'ENTREGAR':
+    case 'LISTO': {
+      let viajeIdToComplete: number | undefined;
+      let compraToComplete;
+      
+      if (upperComando === 'ENTREGAR') {
+        if (args.length < 2) return '❌ Uso: *ENTREGAR {codigo}';
+        const codigo = args[1].toUpperCase();
+        const { data: compra } = await supabaseAdmin.from('compras')
+          .select('id, estado, wa_user_id, viaje_id')
+          .eq('codigo_seguridad', codigo).maybeSingle();
+        if (!compra || !compra.viaje_id) return '❌ Código no encontrado o sin viaje asociado.';
+        
+        const { data: viaje } = await supabaseAdmin.from('viajes')
+          .select('pasador_id, id').eq('id', compra.viaje_id).maybeSingle();
+        if (viaje?.pasador_id !== pasador.id) return '❌ Ese pedido no está asignado a vos.';
+        
+        viajeIdToComplete = viaje.id;
+        compraToComplete = compra;
+      } else {
+        const { data: viaje, error: viajeError } = await supabaseAdmin
+          .from('viajes')
+          .select('id, estado, usuario_wa_id, precio_ars')
+          .eq('pasador_id', pasador.id)
+          .eq('estado', 'aceptado')
+          .single();
+        if (viajeError || !viaje) return '❌ No tienes un viaje aceptado para marcar como completado.';
+        viajeIdToComplete = viaje.id;
+        const { data: compra } = await supabaseAdmin.from('compras').select('id, wa_user_id').eq('viaje_id', viaje.id).maybeSingle();
+        compraToComplete = compra;
       }
 
-      // Update viaje estado to 'completado'
+      if (!viajeIdToComplete) return '❌ No se pudo identificar el viaje.';
+
       const { error: updateError } = await supabaseAdmin
         .from('viajes')
         .update({ estado: 'completado', completado_at: new Date().toISOString() })
-        .eq('id', viaje.id);
+        .eq('id', viajeIdToComplete);
 
-      if (updateError) {
-        return '❌ Error al marcar el viaje como completado.';
-      }
+      if (updateError) return '❌ Error al marcar el viaje como completado.';
 
-      // Resetear estado pasador a disponible e incrementar contador de viajes
       const { data: pasadorData } = await supabaseAdmin
-        .from('pasadores')
-        .select('cantidad_viajes_completados')
-        .eq('id', pasador.id)
-        .single();
+        .from('pasadores').select('cantidad_viajes_completados').eq('id', pasador.id).single();
       const newCount = (pasadorData?.cantidad_viajes_completados ?? 0) + 1;
-      await supabaseAdmin
-        .from('pasadores')
-        .update({ estado: 'disponible', cantidad_viajes_completados: newCount })
-        .eq('id', pasador.id);
+      await supabaseAdmin.from('pasadores')
+        .update({ estado: 'disponible', cantidad_viajes_completados: newCount }).eq('id', pasador.id);
 
-      // Also mark compra as entregado if linked
-      await supabaseAdmin
-        .from('compras')
-        .update({ estado: 'entregado', updated_at: new Date().toISOString() })
-        .eq('viaje_id', viaje.id)
-        .neq('estado', 'entregado');
+      if (compraToComplete) {
+        await supabaseAdmin.from('compras')
+          .update({ estado: 'entregado', updated_at: new Date().toISOString() }).eq('id', compraToComplete.id);
+        
+        await metaProvider.sendInteractiveButtons(compraToComplete.wa_user_id,
+          `📬 ¡Tu paquete llegó! ¿Cómo calificarías al pasador?`,
+          [
+            { id: `rating_5_${viajeIdToComplete}`, title: '⭐⭐⭐⭐⭐ Excelente' },
+            { id: `rating_4_${viajeIdToComplete}`, title: '⭐⭐⭐⭐ Muy bien' },
+            { id: `rating_3_${viajeIdToComplete}`, title: '⭐⭐⭐ Regular' },
+          ]
+        ).catch(() => {});
+      }
 
       return '✅ Viaje marcado como completado. Se ha solicitado un rating al usuario.';
     }
@@ -561,7 +606,7 @@ export async function manejarComando(waUserId: string, comando: string): Promise
     }
 
     default:
-      return '❌ Comando no reconocido. Usá: *ACTIVO, *ACEPTO, *RECHAZO, *LISTO, *DESCONECTAR.';
+      return '❌ Comando no reconocido. Usá: *ACTIVO, *ACEPTO, *RECHAZO, *RETIRAR, *ENTREGAR, *LISTO, *DESCONECTAR.';
   }
 }
 

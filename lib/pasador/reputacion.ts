@@ -9,9 +9,9 @@ export async function actualizarReputacion(pasadorId: number): Promise<void> {
   // Calculate the average rating from the ratings table for this pasador
   const { data, error, count } = await supabaseAdmin
     .from('ratings')
-    .select('puntuacion')
+    .select('score')
     .eq('pasador_id', pasadorId)
-    .not('puntuacion', 'is', null);
+    .not('score', 'is', null);
 
   if (error) {
     console.error('Error fetching ratings for pasador:', error);
@@ -32,7 +32,7 @@ export async function actualizarReputacion(pasadorId: number): Promise<void> {
   }
 
   // Calculate average
-  const sum = data.reduce((acc, rating) => acc + (rating.puntuacion || 0), 0);
+  const sum = data.reduce((acc, rating) => acc + (rating.score || 0), 0);
   const promedio = sum / data.length;
 
   // Update the pasador's reputation

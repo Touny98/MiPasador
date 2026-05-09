@@ -99,6 +99,32 @@ export async function handleInteractiveMessage(
     return;
   }
 
+  if (replyId.startsWith('rating_')) {
+    const [, scoreStr, viajeIdStr] = replyId.split('_');
+    const score = parseInt(scoreStr, 10);
+    const viajeId = parseInt(viajeIdStr, 10);
+    const { data: viaje } = await supabaseAdmin.from('viajes')
+      .select('pasador_id, id').eq('id', viajeId).single();
+    const { data: compra } = await supabaseAdmin.from('compras')
+      .select('id').eq('viaje_id', viajeId).maybeSingle();
+    
+    await supabaseAdmin.from('ratings').insert({
+      viaje_id: viajeId, compra_id: compra?.id ?? null,
+      wa_user_id: from, pasador_id: viaje?.pasador_id ?? null, score
+    }).select().maybeSingle(); // Ensure we don't throw if conflict is ignored or handled
+    
+    if (viaje?.pasador_id) {
+      const { data: ratingStats } = await supabaseAdmin
+        .from('ratings').select('score').eq('pasador_id', viaje.pasador_id);
+      if (ratingStats && ratingStats.length > 0) {
+        const avg = ratingStats.reduce((s, r) => s + (r.score as number), 0) / ratingStats.length;
+        await supabaseAdmin.from('pasadores').update({ reputacion_promedio: avg }).eq('id', viaje.pasador_id);
+      }
+    }
+    await metaProvider.sendMessage(from, `⭐ ¡Gracias por tu calificación! Esto nos ayuda a mejorar el servicio.`).catch(() => {});
+    return;
+  }
+
   // Merchant category selection buttons
   if (replyId.startsWith('comercio_cat_done_')) {
     const postulacionId = replyId.replace('comercio_cat_done_', '');
@@ -225,15 +251,34 @@ export async function handleIncomingMessage(
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
 
+  let ctx: Record<string, unknown> = {};
+  if (conversationId) {
+    ctx = ((await getOrCreateConversationContext(conversationId)) ?? {}) as Record<string, unknown>;
+  }
+
+  const { data: roleRow } = await supabaseAdmin
+    .from('user_roles').select('role').eq('wa_user_id', from).maybeSingle();
+  
+  if (!roleRow) {
+    await supabaseAdmin.from('user_roles').insert({ wa_user_id: from, role: 'buyer' });
+    await sendWelcome(from);
+    return;
+  }
+
+  const userRole = roleRow.role ?? 'buyer';
+
+  if (userRole === 'merchant' && (trimmed.startsWith('*') || ctx.merchant_product_flow)) {
+    if (!ctx.sales_flow && !ctx.pasador_flow && !ctx.postulacion_paso && !ctx.comercio_paso) {
+       const { handleMerchantProductCommand } = await import('./merchant-products-flow');
+       const handled = await handleMerchantProductCommand(from, message, mediaIds, ctx, conversationId);
+       if (handled) return;
+    }
+  }
+
   if (trimmed.startsWith('*')) {
     const resp = await manejarComando(from, trimmed.substring(1));
     await metaProvider.sendMessage(from, resp).catch(() => {});
     return;
-  }
-
-  let ctx: Record<string, unknown> = {};
-  if (conversationId) {
-    ctx = ((await getOrCreateConversationContext(conversationId)) ?? {}) as Record<string, unknown>;
   }
 
   // Enhanced cancel UX: disambiguate order cancel vs conversation cancel

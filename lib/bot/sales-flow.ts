@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/utils/supabase/admin';
 import { MetaCloudProvider } from '@/lib/messaging/meta-cloud';
-import { getCategorias, getProductosPorCategoria } from '@/lib/search/products';
+import { getCategorias, getProductosPorCategoria, getSubcategorias } from '@/lib/search/products';
 import {
   generarCodigoSeguridad,
   reducirStock,
@@ -13,7 +13,8 @@ import { MSG, parseReserveButtonId } from '@/lib/bot/messages';
 
 export type SalesFlowState =
   | { step: 'eligiendo_categoria' }
-  | { step: 'viendo_productos'; categoria: string; offset: number }
+  | { step: 'eligiendo_subcategoria'; categoria: string }
+  | { step: 'viendo_productos'; categoria: string; subcategoria?: string; offset: number }
   | { step: 'esperando_pago'; compraId: string; productoId: string }
   | { step: 'eligiendo_pasador'; compraId: string; productoId: string }
   | { step: 'capturando_peso_pasador'; compraId: string }
@@ -50,11 +51,12 @@ export async function showCategoryList(
 async function showProductos(
   from: string,
   categoria: string,
+  subcategoria: string | undefined,
   offset: number,
   merchantId: string,
   metaProvider: MetaCloudProvider
 ): Promise<void> {
-  const productos = await getProductosPorCategoria(categoria, offset, 3, merchantId || undefined);
+  const productos = await getProductosPorCategoria(categoria, offset, 3, merchantId || undefined, subcategoria);
 
   if (productos.length === 0) {
     if (offset === 0) {
@@ -95,6 +97,13 @@ async function showProductos(
       },
       buttons
     ).catch(() => {});
+
+    await supabaseAdmin.from('analytics_eventos').insert({
+      tipo: 'product_impression',
+      producto_id: p.id,
+      wa_user_id: from,
+      merchant_id: p.merchant_id,
+    });
   }
 }
 
@@ -181,6 +190,14 @@ async function iniciarEntregaPasador(
   const pasador = await asignarPasadorParaViaje(viaje.id);
 
   if (pasador) {
+    const { data: pasadorInfo } = await supabaseAdmin.from('pasadores')
+      .select('wa_user_id').eq('id', pasador.id).single();
+    if (pasadorInfo?.wa_user_id) {
+      await metaProvider.sendMessage(pasadorInfo.wa_user_id,
+        `📦 Nuevo paquete asignado\n🔐 Código: *${compra?.codigo_seguridad}*\nRetirá en: ${origenDir}\nUsá *RETIRAR ${compra?.codigo_seguridad} cuando retires.`
+      ).catch(() => {});
+    }
+
     await metaProvider.sendMessage(
       from,
       `✅ *Pasador asignado*\n👤 ${pasador.nombre_completo ?? 'Nuestro pasador'}\n📦 Peso: ${pesoKg} kg\n💵 Tarifa: $${precioArs} ARS\n⏱️ Estimado: 20–30 min\n🔐 Código: ${compra?.codigo_seguridad ?? ''}`
@@ -288,15 +305,40 @@ export async function handleSalesInteractive(
 
   if (type === 'category') {
     const cat = categoryName ?? '';
-    await showProductos(from, cat, 0, merchantId, metaProvider);
+    const subcats = await getSubcategorias(cat, merchantId);
+    if (subcats.length > 0) {
+      if (subcats.length <= 3) {
+        await metaProvider.sendInteractiveButtons(
+          from,
+          `¿Qué buscas en ${cat}? 👇`,
+          subcats.map((sc) => ({ id: `sales_subcat_${sc}`, title: sc }))
+        );
+      } else {
+        await metaProvider.sendList(
+          from,
+          `Elegí una opción para ${cat} 👇`,
+          'Ver opciones',
+          [{ title: cat, rows: subcats.map((sc) => ({ id: `sales_subcat_${sc}`, title: sc })) }]
+        );
+      }
+      return { step: 'eligiendo_subcategoria', categoria: cat };
+    }
+    await showProductos(from, cat, undefined, 0, merchantId, metaProvider);
     return { step: 'viendo_productos', categoria: cat, offset: 0 };
+  }
+
+  if (type === 'subcat') {
+    if (!salesFlow || salesFlow.step !== 'eligiendo_subcategoria') return salesFlow;
+    const subcat = categoryName ?? '';
+    await showProductos(from, salesFlow.categoria, subcat, 0, merchantId, metaProvider);
+    return { step: 'viendo_productos', categoria: salesFlow.categoria, subcategoria: subcat, offset: 0 };
   }
 
   if (type === 'cat_next') {
     if (!salesFlow || salesFlow.step !== 'viendo_productos') return salesFlow;
     const nextOffset = salesFlow.offset + 3;
-    await showProductos(from, salesFlow.categoria, nextOffset, merchantId, metaProvider);
-    return { step: 'viendo_productos', categoria: salesFlow.categoria, offset: nextOffset };
+    await showProductos(from, salesFlow.categoria, salesFlow.subcategoria, nextOffset, merchantId, metaProvider);
+    return { step: 'viendo_productos', categoria: salesFlow.categoria, subcategoria: salesFlow.subcategoria, offset: nextOffset };
   }
 
   if (type === 'buy') {
@@ -304,7 +346,7 @@ export async function handleSalesInteractive(
 
     const { data: product } = await supabaseAdmin
       .from('products')
-      .select('name, precio_ars, precio_bob, stock_actual')
+      .select('name, precio_ars, precio_bob, stock_actual, merchant_id')
       .eq('id', productId)
       .single();
 
@@ -346,6 +388,20 @@ export async function handleSalesInteractive(
       await metaProvider.sendMessage(from, MSG.GENERIC_ERROR).catch(() => {});
       return salesFlow;
     }
+
+    if (product.merchant_id) {
+      const { data: m } = await supabaseAdmin.from('merchants')
+        .select('wa_user_id, name').eq('id', product.merchant_id).maybeSingle();
+      if (m?.wa_user_id) {
+        await metaProvider.sendMessage(m.wa_user_id,
+          `🛒 Nueva venta!\n📦 ${product.name}\n🔐 Código: *${codigo}*\nEsperá al pasador con este código.`
+        ).catch(() => {});
+      }
+    }
+
+    await supabaseAdmin.from('analytics_eventos').insert({
+      tipo: 'product_click', producto_id: productId, wa_user_id: from
+    });
 
     await metaProvider.sendInteractiveButtons(
       from,

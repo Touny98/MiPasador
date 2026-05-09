@@ -43,11 +43,36 @@ export async function getCategorias(merchantId?: string): Promise<string[]> {
   return Array.from(seen).sort();
 }
 
+export async function getSubcategorias(categoria: string, merchantId?: string): Promise<string[]> {
+  let query = supabaseAdmin
+    .from('products')
+    .select('subcategory')
+    .eq('is_active', true)
+    .gt('stock_actual', 0)
+    .eq('category', categoria)
+    .not('subcategory', 'is', null);
+
+  if (merchantId) query = query.eq('merchant_id', merchantId);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[getSubcategorias] error:', error.message);
+    return [];
+  }
+
+  const seen = new Set<string>();
+  for (const row of data ?? []) {
+    if (row.subcategory) seen.add(row.subcategory);
+  }
+  return Array.from(seen).sort();
+}
+
 export async function getProductosPorCategoria(
   categoria: string,
   offset: number,
   limit = 3,
-  merchantId?: string
+  merchantId?: string,
+  subcategoria?: string
 ): Promise<{
   id: string;
   name: string;
@@ -68,6 +93,7 @@ export async function getProductosPorCategoria(
     .range(offset, offset + limit - 1);
 
   if (merchantId) query = query.eq('merchant_id', merchantId);
+  if (subcategoria) query = query.eq('subcategory', subcategoria);
 
   const { data, error } = await query;
   if (error) {

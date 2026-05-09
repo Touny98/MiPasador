@@ -8,6 +8,7 @@ export const parseReserveButtonId = (id: string) => {
   if (id.startsWith('pasador_si_')) return { type: 'pasador_si', compraId: id.replace('pasador_si_', ''), productId: undefined, categoryName: undefined };
   if (id.startsWith('pasador_no_')) return { type: 'pasador_no', compraId: id.replace('pasador_no_', ''), productId: undefined, categoryName: undefined };
   if (id.startsWith('sales_cat_')) return { type: 'category', categoryName: id.replace('sales_cat_', ''), productId: undefined, compraId: undefined };
+  if (id.startsWith('sales_subcat_')) return { type: 'subcat', categoryName: id.replace('sales_subcat_', ''), productId: undefined, compraId: undefined };
   if (id.startsWith('sales_reserve_')) return { type: 'reserve', productId: id.replace('sales_reserve_', ''), compraId: undefined, categoryName: undefined };
   if (id.startsWith('followup_reserve_')) return { type: 'reserve', productId: id.replace('followup_reserve_', ''), compraId: undefined, categoryName: undefined };
   if (id === 'sales_cheaper') return { type: 'cheaper', productId: undefined, compraId: undefined, categoryName: undefined };

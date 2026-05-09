@@ -1,6 +1,6 @@
 'use client';
 
-import { createProduct, deleteProduct, updateProduct } from './actions';
+import { createProduct, deleteProduct, updateProduct, aprobarProducto, rechazarProducto } from './actions';
 import { supabase } from '@/lib/utils/supabase/client';
 import { useState, useEffect } from 'react';
 
@@ -18,6 +18,7 @@ export default function ProductsPage() {
     currency: 'USD',
     sku: '',
     category: '',
+    subcategory: '',
     stock: '',
     stock_actual: '',
     precio_bob: '',
@@ -73,6 +74,7 @@ export default function ProductsPage() {
         currency: 'USD',
         sku: '',
         category: '',
+        subcategory: '',
         stock: '',
         stock_actual: '',
         precio_bob: '',
@@ -103,6 +105,7 @@ export default function ProductsPage() {
         currency: 'USD',
         sku: '',
         category: '',
+        subcategory: '',
         stock: '',
         stock_actual: '',
         precio_bob: '',
@@ -191,7 +194,7 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">SKU</label>
               <input
@@ -209,6 +212,16 @@ export default function ProductsPage() {
                 name="category"
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Subcategoría</label>
+              <input
+                type="text"
+                name="subcategory"
+                value={formData.subcategory}
+                onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
@@ -314,6 +327,9 @@ export default function ProductsPage() {
                 Stock
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Moderación
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Acciones
               </th>
             </tr>
@@ -369,6 +385,9 @@ export default function ProductsPage() {
                           className="w-full px-3 py-2 border rounded"
                         />
                       </td>
+                      <td className="px-6 py-4">
+                        {/* No moderation edit inline */}
+                      </td>
                       <td className="px-6 py-4 space-x-2">
                         <button
                           onClick={(e) => handleUpdate(e, product.id)}
@@ -397,6 +416,23 @@ export default function ProductsPage() {
                         {product.precio_bob ? `Bs.${product.precio_bob}` : '—'} / {product.precio_ars ? `$${product.precio_ars}` : '—'}
                       </td>
                       <td className="px-6 py-4">{product.stock_actual ?? product.stock ?? 0}</td>
+                      <td className="px-6 py-4 text-sm">
+                        {product.moderation_status === 'pending' && (
+                          <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Pendiente</span>
+                        )}
+                        {product.moderation_status === 'approved' && (
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded">Aprobado</span>
+                        )}
+                        {product.moderation_status === 'rejected' && (
+                          <span className="bg-red-100 text-red-800 px-2 py-1 rounded">Rechazado</span>
+                        )}
+                        {product.moderation_status === 'pending' && (
+                          <div className="mt-2 space-x-2">
+                            <button onClick={async () => { await aprobarProducto(product.id); await fetchProducts(); }} className="text-xs bg-blue-500 text-white px-2 py-1 rounded">Aprobar</button>
+                            <button onClick={async () => { await rechazarProducto(product.id); await fetchProducts(); }} className="text-xs bg-red-500 text-white px-2 py-1 rounded">Rechazar</button>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-6 py-4 space-x-2">
                         <button
                           onClick={() => {
@@ -409,6 +445,7 @@ export default function ProductsPage() {
                               currency: product.currency,
                               sku: product.sku,
                               category: product.category,
+                              subcategory: product.subcategory ?? '',
                               stock: product.stock,
                               stock_actual: product.stock_actual ?? '',
                               precio_bob: product.precio_bob ?? '',

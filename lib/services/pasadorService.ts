@@ -150,14 +150,14 @@ export function calcularComision(totalPrecio: number): number {
 export async function updateReputacionPasador(pasadorId: number): Promise<void> {
   const { data, error } = await supabaseAdmin
     .from('ratings')
-    .select('puntuacion')
+    .select('score')
     .eq('pasador_id', pasadorId);
   if (error) {
     console.error('updateReputacionPasador fetch ratings error:', error);
     return;
   }
   const scores = (data ?? [])
-    .map((r) => r.puntuacion)
+    .map((r) => r.score)
     .filter((s): s is number => s !== null);
   if (scores.length === 0) return;
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;

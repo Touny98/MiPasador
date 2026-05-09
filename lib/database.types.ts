@@ -360,6 +360,7 @@ export type Database = {
           phone_number: string | null
           updated_at: string | null
           whatsapp_business_id: string | null
+          wa_user_id: string | null
         }
         Insert: {
           address?: string | null
@@ -372,6 +373,7 @@ export type Database = {
           phone_number?: string | null
           updated_at?: string | null
           whatsapp_business_id?: string | null
+          wa_user_id?: string | null
         }
         Update: {
           address?: string | null
@@ -384,6 +386,7 @@ export type Database = {
           phone_number?: string | null
           updated_at?: string | null
           whatsapp_business_id?: string | null
+          wa_user_id?: string | null
         }
         Relationships: []
       }
@@ -623,6 +626,7 @@ export type Database = {
           image_url: string | null
           is_active: boolean | null
           merchant_id: string | null
+          moderation_status: string | null
           name: string
           normalized_name: string | null
           precio_ars: number | null
@@ -632,6 +636,7 @@ export type Database = {
           stock: number | null
           stock_actual: number | null
           stock_reservado: number | null
+          subcategory: string | null
           total_reservations: number | null
           updated_at: string | null
         }
@@ -644,6 +649,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean | null
           merchant_id?: string | null
+          moderation_status?: string | null
           name: string
           normalized_name?: string | null
           precio_ars?: number | null
@@ -653,6 +659,7 @@ export type Database = {
           stock?: number | null
           stock_actual?: number | null
           stock_reservado?: number | null
+          subcategory?: string | null
           total_reservations?: number | null
           updated_at?: string | null
         }
@@ -665,6 +672,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean | null
           merchant_id?: string | null
+          moderation_status?: string | null
           name?: string
           normalized_name?: string | null
           precio_ars?: number | null
@@ -674,6 +682,7 @@ export type Database = {
           stock?: number | null
           stock_actual?: number | null
           stock_reservado?: number | null
+          subcategory?: string | null
           total_reservations?: number | null
           updated_at?: string | null
         }
@@ -737,30 +746,30 @@ export type Database = {
       }
       ratings: {
         Row: {
-          comentario: string | null
+          compra_id: string | null
           created_at: string | null
           id: number
           pasador_id: number | null
-          puntuacion: number | null
-          usuario_wa_id: string | null
+          score: number
+          wa_user_id: string
           viaje_id: number | null
         }
         Insert: {
-          comentario?: string | null
+          compra_id?: string | null
           created_at?: string | null
           id?: number
           pasador_id?: number | null
-          puntuacion?: number | null
-          usuario_wa_id?: string | null
+          score: number
+          wa_user_id: string
           viaje_id?: number | null
         }
         Update: {
-          comentario?: string | null
+          compra_id?: string | null
           created_at?: string | null
           id?: number
           pasador_id?: number | null
-          puntuacion?: number | null
-          usuario_wa_id?: string | null
+          score?: number
+          wa_user_id?: string
           viaje_id?: number | null
         }
         Relationships: [
@@ -778,6 +787,13 @@ export type Database = {
             referencedRelation: "viajes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ratings_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "compras"
+            referencedColumns: ["id"]
+          }
         ]
       }
       reservations: {
@@ -954,6 +970,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: number
+          role: string
+          wa_user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          role?: string
+          wa_user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          role?: string
+          wa_user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
