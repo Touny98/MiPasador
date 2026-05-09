@@ -72,7 +72,7 @@ export async function updateProduct(id: string, formData: FormData) {
   // Parse stock_actual safely - keep existing value if field is empty
   const stockActualVal = stock_actual.trim() !== '' ? parseInt(stock_actual, 10) : undefined;
 
-  const updatePayload: Record<string, unknown> = {
+  const updatePayload: any = {
     merchant_id,
     name,
     description,
