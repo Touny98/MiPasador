@@ -1,6 +1,7 @@
 'use client';
 
-import { createProduct, deleteProduct, updateProduct, aprobarProducto, rechazarProducto } from './actions';
+import { createProduct, deleteProduct, updateProduct, aprobarProducto, rechazarProducto, fetchCategories } from './actions';
+import { CategoriesManager } from './_components/CategoriesManager';
 import { supabase } from '@/lib/utils/supabase/client';
 import { useState, useEffect } from 'react';
 
@@ -10,6 +11,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     merchant_id: '',
     name: '',
@@ -25,7 +27,13 @@ export default function ProductsPage() {
   useEffect(() => {
     fetchMerchants();
     fetchProducts();
+    loadCategories();
   }, []);
+
+  const loadCategories = async () => {
+    const data = await fetchCategories();
+    setCategories(data || []);
+  };
 
   const fetchMerchants = async () => {
     const { data, error } = await supabase
@@ -111,6 +119,8 @@ export default function ProductsPage() {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Productos Administración</h1>
 
+      <CategoriesManager onUpdate={loadCategories} />
+
       {/* Create Form */}
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
         <h2 className="text-lg font-semibold mb-2">Crear Nuevo Producto</h2>
@@ -173,23 +183,37 @@ export default function ProductsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Categoría</label>
-              <input
-                type="text"
+              <select
                 name="category"
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value, subcategory: '' })}
                 className="w-full px-3 py-2 border rounded"
-              />
+              >
+                <option value="">Selecciona una categoría</option>
+                {categories.filter(c => !c.parent_id).map(cat => (
+                  <option key={cat.id} value={cat.name}>{cat.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Subcategoría</label>
-              <input
-                type="text"
+              <select
                 name="subcategory"
                 value={formData.subcategory}
                 onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                 className="w-full px-3 py-2 border rounded"
-              />
+              >
+                <option value="">Selecciona una subcategoría</option>
+                {categories
+                  .filter(c => {
+                    const parent = categories.find(p => p.name === formData.category);
+                    return parent && c.parent_id === parent.id;
+                  })
+                  .map(sub => (
+                    <option key={sub.id} value={sub.name}>{sub.name}</option>
+                  ))
+                }
+              </select>
             </div>
           </div>
 
@@ -273,28 +297,65 @@ export default function ProductsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                           <div>
                             <label className="block text-sm font-medium mb-1">Nombre</label>
-                            <input type="text" name="name" defaultValue={product.name} required className="w-full px-3 py-2 border rounded" />
+                            <input type="text" name="name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required className="w-full px-3 py-2 border rounded" />
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1">Comercio</label>
-                            <select name="merchant_id" defaultValue={product.merchant_id} className="w-full px-3 py-2 border rounded">
+                            <select name="merchant_id" value={formData.merchant_id} onChange={(e) => setFormData({...formData, merchant_id: e.target.value})} className="w-full px-3 py-2 border rounded">
                               <option value="">Selecciona un comercio</option>
                               {merchants.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
                           </div>
                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Categoría</label>
+                            <select
+                              name="category"
+                              value={formData.category}
+                              onChange={(e) => setFormData({ ...formData, category: e.target.value, subcategory: '' })}
+                              className="w-full px-3 py-2 border rounded"
+                            >
+                              <option value="">Selecciona una categoría</option>
+                              {categories.filter(c => !c.parent_id).map(cat => (
+                                <option key={cat.id} value={cat.name}>{cat.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Subcategoría</label>
+                            <select
+                              name="subcategory"
+                              value={formData.subcategory}
+                              onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                              className="w-full px-3 py-2 border rounded"
+                            >
+                              <option value="">Selecciona una subcategoría</option>
+                              {categories
+                                .filter(c => {
+                                  const parent = categories.find(p => p.name === formData.category);
+                                  return parent && c.parent_id === parent.id;
+                                })
+                                .map(sub => (
+                                  <option key={sub.id} value={sub.name}>{sub.name}</option>
+                                ))
+                              }
+                            </select>
+                          </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                           <div>
                             <label className="block text-sm font-medium mb-1">Precio ARS</label>
-                            <input type="number" step="0.01" name="precio_ars" defaultValue={product.precio_ars} required className="w-full px-3 py-2 border rounded" />
+                            <input type="number" step="0.01" name="precio_ars" value={formData.precio_ars} onChange={(e) => setFormData({...formData, precio_ars: e.target.value})} required className="w-full px-3 py-2 border rounded" />
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1">Stock disponible</label>
-                            <input type="number" name="stock_actual" defaultValue={product.stock_actual ?? product.stock} className="w-full px-3 py-2 border rounded" />
+                            <input type="number" name="stock_actual" value={formData.stock_actual} onChange={(e) => setFormData({...formData, stock_actual: e.target.value})} className="w-full px-3 py-2 border rounded" />
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1">SKU</label>
-                            <input type="text" name="sku" defaultValue={product.sku} className="w-full px-3 py-2 border rounded" />
+                            <input type="text" name="sku" value={formData.sku} onChange={(e) => setFormData({...formData, sku: e.target.value})} className="w-full px-3 py-2 border rounded" />
                           </div>
                         </div>
                         <div className="mb-4">
@@ -303,7 +364,7 @@ export default function ProductsPage() {
                         </div>
                         <div className="mb-4">
                           <label className="block text-sm font-medium mb-1">Descripción</label>
-                          <textarea name="description" defaultValue={product.description} rows={2} className="w-full px-3 py-2 border rounded" />
+                          <textarea name="description" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded" />
                         </div>
                         <div className="flex justify-end gap-2 mt-4">
                           <button type="button" onClick={() => setEditingId(null)} className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">Cancelar</button>

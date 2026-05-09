@@ -21,50 +21,42 @@ export async function searchProducts(rawQuery: string, merchantId: string) {
 }
 
 export async function getCategorias(merchantId?: string): Promise<string[]> {
-  let query = supabaseAdmin
-    .from('products')
-    .select('category')
-    .eq('is_active', true)
-    .gt('stock_actual', 0)
-    .not('category', 'is', null);
+  const { data, error } = await supabaseAdmin
+    .from('categories')
+    .select('name')
+    .is('parent_id', null)
+    .order('name');
 
-  if (merchantId) query = query.eq('merchant_id', merchantId);
-
-  const { data, error } = await query;
   if (error) {
     console.error('[getCategorias] error:', error.message);
     return [];
   }
 
-  const seen = new Set<string>();
-  for (const row of data ?? []) {
-    if (row.category) seen.add(row.category);
-  }
-  return Array.from(seen).sort();
+  return data.map(c => c.name);
 }
 
 export async function getSubcategorias(categoria: string, merchantId?: string): Promise<string[]> {
-  let query = supabaseAdmin
-    .from('products')
-    .select('subcategory')
-    .eq('is_active', true)
-    .gt('stock_actual', 0)
-    .eq('category', categoria)
-    .not('subcategory', 'is', null);
+  const { data: parent } = await supabaseAdmin
+    .from('categories')
+    .select('id')
+    .eq('name', categoria)
+    .is('parent_id', null)
+    .maybeSingle();
 
-  if (merchantId) query = query.eq('merchant_id', merchantId);
+  if (!parent) return [];
 
-  const { data, error } = await query;
+  const { data, error } = await supabaseAdmin
+    .from('categories')
+    .select('name')
+    .eq('parent_id', parent.id)
+    .order('name');
+
   if (error) {
     console.error('[getSubcategorias] error:', error.message);
     return [];
   }
 
-  const seen = new Set<string>();
-  for (const row of data ?? []) {
-    if (row.subcategory) seen.add(row.subcategory);
-  }
-  return Array.from(seen).sort();
+  return data.map(c => c.name);
 }
 
 export async function getProductosPorCategoria(

@@ -155,3 +155,36 @@ export async function rechazarProducto(id: string, motivo?: string) {
     }
   }
 }
+
+export async function fetchCategories() {
+  const { data, error } = await supabaseAdmin
+    .from('categories')
+    .select('*')
+    .order('name');
+  if (error) {
+    console.error('Error fetching categories:', error);
+    return [];
+  }
+  return data;
+}
+
+export async function createCategory(name: string, parent_id: number | null = null) {
+  const { error } = await supabaseAdmin
+    .from('categories')
+    .insert([{ name, parent_id }]);
+  if (error) {
+    console.error('Error creating category:', error);
+    throw error;
+  }
+}
+
+export async function deleteCategory(id: number) {
+  const { error } = await supabaseAdmin
+    .from('categories')
+    .delete()
+    .eq('id', id);
+  if (error) {
+    console.error('Error deleting category:', error);
+    throw error;
+  }
+}
