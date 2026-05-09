@@ -416,12 +416,16 @@ export async function handleIncomingMessage(
     return;
   }
 
-  if (trimmed === '') return;
-  const products = await searchProducts(trimmed, merchantId);
-  if (products.length === 0) {
-    await metaProvider.sendMessage(from, MSG.NO_RESULTS).catch(() => {});
-  } else {
-    const p = products[0];
-    await metaProvider.sendMessage(from, `${p.name} — $${p.price}`).catch(() => {});
+  if (userRole === 'merchant') {
+    await metaProvider.sendMessage(from, '🏪 Comandos disponibles:\n\n*NUEVO_PRODUCTO : Subir producto\n*MIS_PRODUCTOS : Ver mis productos\n*STOCK {sku} {cant} : Actualizar stock').catch(() => {});
+    return;
   }
+
+  if (userRole === 'pasador') {
+    await metaProvider.sendMessage(from, '🚚 Comandos disponibles:\n\n*ACTIVO : Empezar a trabajar\n*INACTIVO : Dejar de trabajar\n*ACEPTO : Aceptar pedido\n*RECHAZO : Rechazar pedido\n*RETIRAR {cod} : Confirmar retiro\n*ENTREGAR {cod} : Confirmar entrega').catch(() => {});
+    return;
+  }
+
+  // Si no encajó en nada y es un buyer (o sin rol especial)
+  await sendWelcome(from);
 }

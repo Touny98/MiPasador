@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { fetchPasadores, togglePasadorActivo, deletePasador } from '../actions';
 
 export function PasadoresContent() {
   const [pasadores, setPasadores] = useState<any[]>([]);
@@ -8,95 +9,55 @@ export function PasadoresContent() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetchPasadores();
-  }, [search]);
+    loadPasadores();
+  }, []);
 
-  async function fetchPasadores() {
+  async function loadPasadores() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/pasadores`);
-      if (!res.ok) {
-        throw new Error('Failed to fetch pasadores');
-      }
-      const data = await res.json();
-      // Apply search filter on the client side for simplicity
-      const filtered = data.filter((p: any) => {
-        if (!search) return true;
-        const searchLower = search.toLowerCase();
-        return (
-          (p.nombre_completo?.toLowerCase().includes(searchLower) ?? false) ||
-          (p.dni?.toLowerCase().includes(searchLower) ?? false)
-        );
-      });
-      setPasadores(filtered);
+      const data = await fetchPasadores();
+      setPasadores(data || []);
     } catch (err) {
       console.error('Error fetching pasadores:', err);
-      // Keep pasadores as empty array
     } finally {
       setLoading(false);
     }
   }
 
   async function handleToggleActivo(id: number, currentActivo: boolean) {
-    try {
-      const res = await fetch(`/api/admin/pasadores`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id,
-          action: 'toggle',
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to toggle activo');
-      }
-
-      const updatedPasador = await res.json();
-
-      // Optimistic update
-      setPasadores(
-        pasadores.map((p) =>
-          p.id === id ? { ...p, activo: updatedPasador.activo } : p
-        )
-      );
-    } catch (err) {
-      console.error('Error toggling activo:', err);
-      // In a real app, show a toast
+    // Optimistic update
+    setPasadores(pasadores.map((p) => (p.id === id ? { ...p, activo: !currentActivo } : p)));
+    const res = await togglePasadorActivo(id, currentActivo);
+    if (!res.success) {
+      // Revert on failure
+      setPasadores(pasadores.map((p) => (p.id === id ? { ...p, activo: currentActivo } : p)));
+      alert(res.error);
     }
   }
 
-  async function handleSuspender(id: number) {
-    try {
-      const res = await fetch(`/api/admin/pasadores`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id,
-          action: 'suspend',
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to suspend pasador');
-      }
-
-      const updatedPasador = await res.json();
-
-      setPasadores(
-        pasadores.map((p) =>
-          p.id === id ? { ...p, activo: updatedPasador.activo } : p
-        )
-      );
-    } catch (err) {
-      console.error('Error suspending pasador:', err);
-      // In a real app, show a toast
+  async function handleDelete(id: number) {
+    if (!window.confirm('¿Seguro que deseas eliminar a este pasador?')) return;
+    
+    // Optimistic delete
+    const previous = [...pasadores];
+    setPasadores(pasadores.filter((p) => p.id !== id));
+    
+    const res = await deletePasador(id);
+    if (!res.success) {
+      // Revert on failure
+      setPasadores(previous);
+      alert(res.error);
     }
   }
+
+  const filteredPasadores = pasadores.filter((p) => {
+    if (!search) return true;
+    const searchLower = search.toLowerCase();
+    return (
+      (p.nombre_completo?.toLowerCase().includes(searchLower) ?? false) ||
+      (p.dni?.toLowerCase().includes(searchLower) ?? false)
+    );
+  });
 
   if (loading) {
     return <div className="p-6">Cargando...</div>;
@@ -112,7 +73,7 @@ export function PasadoresContent() {
           placeholder="Buscar por nombre o DNI..."
           className="w-full p-2 border border-gray-300 rounded"
         />
-      </div >
+      </div>
 
       <table className="min-w-full bg-white border border-gray-200">
         <thead>
@@ -126,7 +87,7 @@ export function PasadoresContent() {
           </tr>
         </thead>
         <tbody>
-          {pasadores.map((p) => (
+          {filteredPasadores.map((p) => (
             <tr key={p.id} className="border-t">
               <td className="p-4">{p.nombre_completo || '---'}</td>
               <td className="p-4">{p.dni || '---'}</td>
@@ -140,7 +101,7 @@ export function PasadoresContent() {
                   <input
                     type="checkbox"
                     checked={p.activo}
-                    onChange={(e) => handleToggleActivo(p.id, e.target.checked)}
+                    onChange={() => handleToggleActivo(p.id, p.activo)}
                     className="sr-only peer"
                   />
                   <span className="w-11 h-6 bg-gray-200 rounded-full peer">
@@ -157,15 +118,15 @@ export function PasadoresContent() {
               </td>
               <td className="p-4 text-center space-x-2">
                 <button
-                  onClick={() => handleSuspender(p.id)}
+                  onClick={() => handleDelete(p.id)}
                   className="px-3 py-1 rounded text-sm bg-red-500 text-white hover:bg-red-600"
                 >
-                  Suspender
+                  Borrar
                 </button>
               </td>
             </tr>
           ))}
-          {pasadores.length === 0 && (
+          {filteredPasadores.length === 0 && (
             <tr>
               <td colSpan={6} className="p-4 text-center text-gray-500">
                 No hay pasadores
@@ -173,7 +134,7 @@ export function PasadoresContent() {
             </tr>
           )}
         </tbody>
-      </table >
+      </table>
     </div>
   );
 }

@@ -389,15 +389,7 @@ export async function handleSalesInteractive(
       return salesFlow;
     }
 
-    if (product.merchant_id) {
-      const { data: m } = await supabaseAdmin.from('merchants')
-        .select('wa_user_id, name').eq('id', product.merchant_id).maybeSingle();
-      if (m?.wa_user_id) {
-        await metaProvider.sendMessage(m.wa_user_id,
-          `🛒 Nueva venta!\n📦 ${product.name}\n🔐 Código: *${codigo}*\nEsperá al pasador con este código.`
-        ).catch(() => {});
-      }
-    }
+    // Eliminada la notificación temprana de comerciante, se mueve a confirmación de pago
 
     await supabaseAdmin.from('analytics_eventos').insert({
       tipo: 'product_click', producto_id: productId, wa_user_id: from
@@ -420,7 +412,7 @@ export async function handleSalesInteractive(
 
     const { data: compra } = await supabaseAdmin
       .from('compras')
-      .select('mp_payment_id, producto_id, estado')
+      .select('mp_payment_id, producto_id, estado, codigo_seguridad')
       .eq('id', compraId)
       .single();
 
@@ -434,9 +426,19 @@ export async function handleSalesInteractive(
         await registrarEvento(compraId, 'approved', {}).catch(() => {});
         await supabaseAdmin.from('compras').update({ estado: 'pagado', updated_at: new Date().toISOString() }).eq('id', compraId);
         if (productoId) {
-          const { data: p } = await supabaseAdmin.from('products').select('total_reservations').eq('id', productoId).single();
+          const { data: p } = await supabaseAdmin.from('products').select('name, total_reservations, merchant_id').eq('id', productoId).single();
           await supabaseAdmin.from('products').update({ total_reservations: ((p?.total_reservations as number | null) ?? 0) + 1 }).eq('id', productoId);
           await liberarStock(productoId, true);
+          
+          if (p?.merchant_id) {
+            const { data: m } = await supabaseAdmin.from('merchants').select('wa_user_id').eq('id', p.merchant_id).maybeSingle();
+            if (m?.wa_user_id) {
+              const codSeguridad = (compra.codigo_seguridad as string | null) ?? '';
+              await metaProvider.sendMessage(m.wa_user_id,
+                `🛒 ¡Pago confirmado de nueva venta!\n📦 ${p.name}\n🔐 Código de Seguridad: *${codSeguridad}*\nEl comprador decidirá si usa un pasador o lo retira personalmente.`
+              ).catch(() => {});
+            }
+          }
         }
         await metaProvider.sendInteractiveButtons(
           from,

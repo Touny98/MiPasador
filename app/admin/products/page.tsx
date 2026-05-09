@@ -14,16 +14,12 @@ export default function ProductsPage() {
     merchant_id: '',
     name: '',
     description: '',
-    price: '',
-    currency: 'USD',
     sku: '',
     category: '',
     subcategory: '',
     stock: '',
     stock_actual: '',
-    precio_bob: '',
     precio_ars: '',
-    image_url: '',
   });
 
   useEffect(() => {
@@ -70,16 +66,12 @@ export default function ProductsPage() {
         merchant_id: '',
         name: '',
         description: '',
-        price: '',
-        currency: 'USD',
         sku: '',
         category: '',
         subcategory: '',
         stock: '',
         stock_actual: '',
-        precio_bob: '',
         precio_ars: '',
-        image_url: '',
       });
       await fetchProducts();
     } catch (err) {
@@ -101,16 +93,12 @@ export default function ProductsPage() {
         merchant_id: '',
         name: '',
         description: '',
-        price: '',
-        currency: 'USD',
         sku: '',
         category: '',
         subcategory: '',
         stock: '',
         stock_actual: '',
-        precio_bob: '',
         precio_ars: '',
-        image_url: '',
       });
       await fetchProducts();
     } catch (err) {
@@ -172,23 +160,23 @@ export default function ProductsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Precio</label>
+              <label className="block text-sm font-medium mb-1">Precio ARS ($)</label>
               <input
                 type="number"
                 step="0.01"
-                name="price"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                name="precio_ars"
+                value={formData.precio_ars}
+                onChange={(e) => setFormData({ ...formData, precio_ars: e.target.value })}
+                required
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Moneda</label>
+              <label className="block text-sm font-medium mb-1">Imagen (opcional)</label>
               <input
-                type="text"
-                name="currency"
-                value={formData.currency}
-                onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                type="file"
+                name="image_file"
+                accept="image/*"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
@@ -248,41 +236,6 @@ export default function ProductsPage() {
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">URL de Imagen</label>
-              <input
-                type="text"
-                name="image_url"
-                value={formData.image_url}
-                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Precio BOB (Bs.)</label>
-              <input
-                type="number"
-                step="0.01"
-                name="precio_bob"
-                value={formData.precio_bob}
-                onChange={(e) => setFormData({ ...formData, precio_bob: e.target.value })}
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Precio ARS ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                name="precio_ars"
-                value={formData.precio_ars}
-                onChange={(e) => setFormData({ ...formData, precio_ars: e.target.value })}
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
           </div>
 
           <div>
@@ -318,10 +271,7 @@ export default function ProductsPage() {
                 Nombre
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Precio
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                BOB / ARS
+                Precio ARS
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Stock
@@ -372,8 +322,8 @@ export default function ProductsPage() {
                         <input
                           type="number"
                           step="0.01"
-                          name="price"
-                          defaultValue={product.price}
+                          name="precio_ars"
+                          defaultValue={product.precio_ars}
                           className="w-full px-3 py-2 border rounded"
                         />
                       </td>
@@ -410,10 +360,7 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-6 py-4">{product.name}</td>
                       <td className="px-6 py-4">
-                        {product.price ? `$${parseFloat(product.price).toFixed(2)}` : ''}
-                      </td>
-                      <td className="px-6 py-4 text-xs">
-                        {product.precio_bob ? `Bs.${product.precio_bob}` : '—'} / {product.precio_ars ? `$${product.precio_ars}` : '—'}
+                        {product.precio_ars ? `$${product.precio_ars}` : '—'}
                       </td>
                       <td className="px-6 py-4">{product.stock_actual ?? product.stock ?? 0}</td>
                       <td className="px-6 py-4 text-sm">
@@ -441,16 +388,12 @@ export default function ProductsPage() {
                               merchant_id: product.merchant_id,
                               name: product.name,
                               description: product.description,
-                              price: product.price,
-                              currency: product.currency,
                               sku: product.sku,
                               category: product.category,
                               subcategory: product.subcategory ?? '',
                               stock: product.stock,
                               stock_actual: product.stock_actual ?? '',
-                              precio_bob: product.precio_bob ?? '',
                               precio_ars: product.precio_ars ?? '',
-                              image_url: product.image_url,
                             });
                           }}
                           className="bg-yellow-500 text-white px-3 py-1 rounded text-sm"

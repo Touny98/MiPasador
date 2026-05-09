@@ -379,7 +379,7 @@ export async function manejarComando(waUserId: string, comando: string): Promise
       // We need to find a viaje assigned to this pasador with estado='asignado'
       const { data: viajes, error: viajesError } = await supabaseAdmin
         .from('viajes')
-        .select('id, estado, usuario_wa_id')
+        .select('id, estado, usuario_wa_id, direccion_origen')
         .eq('pasador_id', pasador.id)
         .eq('estado', 'asignado')
         .single();
@@ -408,7 +408,23 @@ export async function manejarComando(waUserId: string, comando: string): Promise
         ).catch(() => {});
       }
 
-      return '✅ Viaje aceptado. El usuario fue notificado.';
+      const { data: compra } = await supabaseAdmin.from('compras')
+        .select('codigo_seguridad, producto_id').eq('viaje_id', viajes.id).maybeSingle();
+
+      if (compra?.producto_id) {
+        const { data: product } = await supabaseAdmin.from('products').select('name, merchant_id').eq('id', compra.producto_id).maybeSingle();
+        if (product?.merchant_id) {
+           const { data: merchant } = await supabaseAdmin.from('merchants').select('wa_user_id').eq('id', product.merchant_id).maybeSingle();
+           if (merchant?.wa_user_id) {
+              await metaProvider.sendMessage(merchant.wa_user_id, `🚚 ¡Tu pedido ya tiene pasador asignado!\n${pasador.nombre_completo} está en camino a retirarlo.`).catch(() => {});
+           }
+        }
+      }
+
+      const origenTxt = viajes.direccion_origen ? `📍 Dirígete a: ${viajes.direccion_origen}` : '';
+      const codigoTxt = compra?.codigo_seguridad ? `\n🔐 Código de retiro: *${compra.codigo_seguridad}*\nUsa *RETIRAR ${compra.codigo_seguridad}* cuando tengas el paquete en tus manos.` : '';
+
+      return `✅ Viaje aceptado. El usuario fue notificado.\n${origenTxt}${codigoTxt}`;
     }
 
     case 'RECHAZO': {
