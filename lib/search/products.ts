@@ -21,7 +21,7 @@ export async function searchProducts(rawQuery: string, merchantId: string) {
 }
 
 export async function getCategorias(merchantId?: string): Promise<string[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await (supabaseAdmin as any)
     .from('categories')
     .select('name')
     .is('parent_id', null)
@@ -36,7 +36,7 @@ export async function getCategorias(merchantId?: string): Promise<string[]> {
 }
 
 export async function getSubcategorias(categoria: string, merchantId?: string): Promise<string[]> {
-  const { data: parent } = await supabaseAdmin
+  const { data: parent } = await (supabaseAdmin as any)
     .from('categories')
     .select('id')
     .eq('name', categoria)
@@ -45,7 +45,7 @@ export async function getSubcategorias(categoria: string, merchantId?: string): 
 
   if (!parent) return [];
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await (supabaseAdmin as any)
     .from('categories')
     .select('name')
     .eq('parent_id', parent.id)

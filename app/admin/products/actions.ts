@@ -163,7 +163,7 @@ export async function rechazarProducto(id: string, motivo?: string) {
 }
 
 export async function fetchCategories() {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await (supabaseAdmin as any)
     .from('categories')
     .select('*')
     .order('name');
@@ -175,7 +175,7 @@ export async function fetchCategories() {
 }
 
 export async function createCategory(name: string, parent_id: number | null = null) {
-  const { error } = await supabaseAdmin
+  const { error } = await (supabaseAdmin as any)
     .from('categories')
     .insert([{ name, parent_id }]);
   if (error) {
@@ -185,7 +185,7 @@ export async function createCategory(name: string, parent_id: number | null = nu
 }
 
 export async function deleteCategory(id: number) {
-  const { error } = await supabaseAdmin
+  const { error } = await (supabaseAdmin as any)
     .from('categories')
     .delete()
     .eq('id', id);
