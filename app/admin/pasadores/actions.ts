@@ -124,7 +124,7 @@ export async function fetchViajesAdmin(filters: { estado?: string; fechaDesde?: 
   return data;
 }
 
-export async function deletePostulacion(id: string) {
+export async function deletePostulacion(id: number) {
   try {
     const { error } = await supabaseAdmin.from('postulaciones').delete().eq('id', id);
     if (error) throw error;
