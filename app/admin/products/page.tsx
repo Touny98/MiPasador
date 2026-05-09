@@ -12,6 +12,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<any | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const createFileRef = React.useRef<HTMLInputElement>(null);
   const editFileRef = React.useRef<HTMLInputElement>(null);
@@ -418,6 +419,12 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-6 py-4 space-x-2">
                         <button
+                          onClick={() => setViewingProduct(product)}
+                          className="bg-blue-500 text-white px-3 py-1 rounded text-sm"
+                        >
+                          Ver
+                        </button>
+                        <button
                           onClick={() => {
                             setEditingId(product.id);
                             setFormData({
@@ -451,6 +458,97 @@ export default function ProductsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Product View Modal */}
+      {viewingProduct && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="relative h-64 sm:h-80 bg-gray-100">
+              {viewingProduct.image_url ? (
+                <img 
+                  src={viewingProduct.image_url} 
+                  alt={viewingProduct.name} 
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  <span className="text-5xl">📦</span>
+                </div>
+              )}
+              <button 
+                onClick={() => setViewingProduct(null)}
+                className="absolute top-4 right-4 bg-white/80 backdrop-blur-md p-2 rounded-full shadow-lg hover:bg-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-2 bg-blue-100 text-blue-700">
+                    {viewingProduct.merchants?.name || 'Comercio desconocido'}
+                  </span>
+                  <h2 className="text-3xl font-bold text-gray-900 leading-tight">
+                    {viewingProduct.name}
+                  </h2>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-black text-green-600">
+                    ${viewingProduct.precio_ars || 0}
+                  </p>
+                  <p className="text-xs text-gray-500 font-medium">PRECIO ARS</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                  <p className="text-xs text-gray-500 uppercase font-bold mb-1">Stock</p>
+                  <p className="text-lg font-semibold text-gray-800">{viewingProduct.stock_actual ?? viewingProduct.stock ?? 0}</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                  <p className="text-xs text-gray-500 uppercase font-bold mb-1">SKU</p>
+                  <p className="text-lg font-semibold text-gray-800">{viewingProduct.sku || '—'}</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                  <p className="text-xs text-gray-500 uppercase font-bold mb-1">Categoría</p>
+                  <p className="text-sm font-semibold text-gray-800 truncate">{viewingProduct.category || '—'}</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                  <p className="text-xs text-gray-500 uppercase font-bold mb-1">Estado</p>
+                  <p className={`text-sm font-semibold ${
+                    viewingProduct.moderation_status === 'approved' ? 'text-green-600' : 
+                    viewingProduct.moderation_status === 'rejected' ? 'text-red-600' : 'text-yellow-600'
+                  }`}>
+                    {viewingProduct.moderation_status === 'approved' ? 'Aprobado' : 
+                     viewingProduct.moderation_status === 'rejected' ? 'Rechazado' : 'Pendiente'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-8">
+                <p className="text-xs text-gray-500 uppercase font-bold mb-2">Descripción</p>
+                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 min-h-[100px]">
+                  <p className="text-gray-700 leading-relaxed italic">
+                    {viewingProduct.description || 'Sin descripción disponible.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setViewingProduct(null)}
+                  className="flex-1 py-4 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-all shadow-lg active:scale-95"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
