@@ -32,7 +32,7 @@ export async function getCategorias(merchantId?: string): Promise<string[]> {
     return [];
   }
 
-  return data.map(c => c.name);
+  return data.map((c: any) => c.name);
 }
 
 export async function getSubcategorias(categoria: string, merchantId?: string): Promise<string[]> {
@@ -56,7 +56,7 @@ export async function getSubcategorias(categoria: string, merchantId?: string): 
     return [];
   }
 
-  return data.map(c => c.name);
+  return data.map((c: any) => c.name);
 }
 
 export async function getProductosPorCategoria(
