@@ -51,7 +51,12 @@ export function PasadoresContent() {
       alert(res.error);
     }
   }
-
+  const filteredPasadores = pasadores.filter((p) => {
+    if (!search) return true;
+    const searchLower = search.toLowerCase();
+    return (
+      (p.nombre_completo?.toLowerCase().includes(searchLower) ?? false) ||
+      (p.dni?.toLowerCase().includes(searchLower) ?? false)
     );
   });
 
